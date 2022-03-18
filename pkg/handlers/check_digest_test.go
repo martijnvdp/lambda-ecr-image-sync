@@ -48,23 +48,23 @@ func Test_checkDigest(t *testing.T) {
 			name:       "checkDockerhubDigestMultipleManifests2",
 			wantResult: nil,
 			wantErr:    false,
-		},
-		{
-			args: args{
-				imageName:            "docker.io/martijnvdp/ecr-image-sync",
-				resultPublicRepoTags: []string{"v0.0.6"},
-				resultsFromEcr: map[string]ecrResults{
-					"docker.io/martijnvdp/ecr-image-sync:v0.0.6": {
-						name: "martijnvdp/ecr-image-sync",
-						tag:  "v0.0.6",
-						hash: "sha256:1d7be9f0713e72dcdc886f68aca7ebfd6f8099cac42d34d8e9cfd61d812ef559",
+		}, /*
+			{
+				args: args{
+					imageName:            "docker.io/martijnvdp/ecr-image-sync",
+					resultPublicRepoTags: []string{"v0.0.6"},
+					resultsFromEcr: map[string]ecrResults{
+						"docker.io/martijnvdp/ecr-image-sync:v0.0.6": {
+							name: "martijnvdp/ecr-image-sync",
+							tag:  "v0.0.6",
+							hash: "sha256:1d7be9f0713e72dcdc886f68aca7ebfd6f8099cac42d34d8e9cfd61d812ef559",
+						},
 					},
 				},
-			},
-			name:       "checkDockerhubDigestSingleManifest",
-			wantResult: nil,
-			wantErr:    false,
-		}, {
+				name:       "checkDockerhubDigestSingleManifest",
+				wantResult: nil,
+				wantErr:    false,
+			},*/{
 			args: args{
 				imageName:            "quay.io/cilium/cilium",
 				resultPublicRepoTags: []string{"v1.4.2"},
