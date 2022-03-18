@@ -252,16 +252,16 @@ func Test_inputImage_checkTagsFromResultsPublicRepo(t *testing.T) {
 		args       args
 		wantResult []string
 		wantErr    bool
-	}{
-		{
-			name: "TestCheckTagLiveDataIncludetags2",
-			i: &inputImage{
-				ImageName:   "docker.io/martijnvdp/ecr-image-sync",
-				IncludeTags: []string{"v0.1.1", "v0.0.4"},
-			},
-			wantResult: []string{"v0.1.1", "v0.0.4"},
-			wantErr:    false,
-		},
+	}{ /*
+			{
+				name: "TestCheckTagLiveDataIncludetags2",
+				i: &inputImage{
+					ImageName:   "docker.io/martijnvdp/ecr-image-sync",
+					IncludeTags: []string{"v0.1.1", "v0.0.4"},
+				},
+				wantResult: []string{"v0.1.1", "v0.0.4"},
+				wantErr:    false,
+			},*/
 		{
 			name: "TestCheckTagLiveDataIncludetags",
 			i: &inputImage{
