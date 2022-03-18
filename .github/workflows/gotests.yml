@@ -1,0 +1,54 @@
+name: go-tests
+
+on:
+  pull_request:
+
+jobs:
+  go-code-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt update && sudo apt install libdevmapper-dev && sudo apt install libbtrfs-dev && sudo apt install pkg-config
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      -
+        name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+      - name: Set go path
+        run: |
+          PATH="$PATH:$HOME/go/bin"
+      -
+        name: Set up GoCyclo
+        run: |
+          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest 
+      -
+        name: Set up ineffassign
+        run: |
+          go install github.com/gordonklaus/ineffassign@latest
+      -
+        name: Set up misspell
+        run: |
+          go install github.com/client9/misspell/cmd/misspell@latest
+      -
+        name: Go Tests
+        run: |
+          go mod tidy
+          pushd /tmp && go install gotest.tools/gotestsum@latest && popd
+          gotestsum --format testname -- --mod=readonly -bench=^$$ -race ./...
+      -
+        name: Go Cyclo test
+        run: |
+          gocyclo -over 15 -ignore 'external' .
+      -
+        name: ineffassign test
+        run: |
+          ineffassign ./...
+      -
+        name: misspell test
+        run: |
+          misspell ./pkg/handlers
+          misspell ./cmd

@@ -1,0 +1,49 @@
+name: build_push_slim_container
+
+on:
+  release:
+    types:
+      - created
+
+jobs:
+  docker-slim-build-container:
+    runs-on: ubuntu-latest
+    steps:
+      - run: sudo apt update && sudo apt install libdevmapper-dev && sudo apt install libbtrfs-dev && sudo apt install pkg-config
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      -
+        name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17
+      -
+        name: Tests
+        run: |
+          go mod tidy
+          go test -v ./pkg/handlers
+      -
+        name: Login to DockerHub
+        uses: docker/login-action@v1 
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      -
+        name: Get Tag Name
+        id: tag_name
+        run: |
+          echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
+
+      - name: Build the Docker image
+        run: |
+          go build ./cmd/main.go
+          sudo curl https://downloads.dockerslim.com/releases/1.37.2/dist_linux.tar.gz -o ./dist_linux.tar.gz && sudo tar xf ./dist_linux.tar.gz -C . && sudo mv dist_linux/* /usr/bin && sudo chmod +x /usr/bin/docker-slim && sudo chmod +x /usr/bin/docker-slim-sensor
+          docker-slim build --tag martijnvdp/ecr-image-sync:$VERSION --tag martijnvdp/ecr-image-sync:latest --include-cert-all --http-probe=false --continue-after 60 --dockerfile ./Dockerfile --dockerfile-context . --delete-generated-fat-image
+          docker push docker.io/martijnvdp/ecr-image-sync --all-tags
+          
+        shell: bash
+        env:
+          VERSION: ${{ steps.tag_name.outputs.SOURCE_TAG }}
