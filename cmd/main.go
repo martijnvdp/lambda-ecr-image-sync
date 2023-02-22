@@ -2,9 +2,9 @@ package main
 
 import (
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/martijnvdp/lambda-ecr-image-sync/pkg/handlers"
+	ecrImageSync "github.com/martijnvdp/lambda-ecr-image-sync/pkg/lambda"
 )
 
 func main() {
-	lambda.Start(handlers.Lambda)
+	lambda.Start(ecrImageSync.Start)
 }

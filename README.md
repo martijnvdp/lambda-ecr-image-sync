@@ -1,16 +1,15 @@
 [![goreleaser](https://github.com/martijnvdp/lambda-ecr-image-sync/actions/workflows/go.yml/badge.svg)](https://github.com/martijnvdp/lambda-ecr-image-sync/actions/workflows/go.yml)
 # ecr-image-sync
 
-Golang Lambda function to compare images between ECR and Public Repositories as dockerHub, quay.io, gcr.io 
-and creates a CSV in an S3 bucket with the missing images/tags to be synced.
+This is a Golang Lambda function that compares images between ECR and public repositories such as DockerHub, Quay.io, and GCR.io. It has the capability to sync the images directly to the target ECR on AWS or output a zipped CSV file with the missing images/tags to an S3 bucket. Another script can then pick up the CSV file to sync the missing images.
 
-The function will compare the given images and tags between ECR and the public registry and places the missing images in a CSV file on in an S3 bucket for CodePipeline to pick up and synchronize the missing images mentioned in the CSV.
-compatible with most container registry's, see for more info the container lib https://github.com/containers/image
+The function compares the provided images and tags between ECR and the public registry using the Crane library to login and copy the missing images to the ECR on AWS. If the Action: s3 is set in the Lambda event, the function will only place the missing images in a CSV file in an S3 bucket. This CSV file can be used by other tools, such as CodePipeline, to synchronize the missing images mentioned in the CSV.
+
+This function is compatible with most container registries. For more information, please refer to the container lib at https://github.com/containers/image.
 
 ## Docker images
 
-- `docker pull martijnvdp/ecr-image-sync:latest`
-- `docker pull martijnvdp/ecr-image-sync:v0.1.7`
+- `docker pull ghcr.io/martijnvdp/ecr-image-sync:latest`
 
 ## usage
 
@@ -33,6 +32,8 @@ Environment variables:
 AWS_ACCOUNT_ID='12345'
 AWS_REGION='eu-west-1'
 BUCKET_NAME='bucket_name'
+DOCKER_USERNAME='optional Username for docker hub'
+DOCKER_PASSWORD='optional Password for docker hub'
 SLACK_OAUTH_TOKEN='Slack oath token for notifications'
 ```
 
@@ -69,6 +70,18 @@ Lambda event data:
   }
 ```
 
+## configure ECR Sync with tags on the internal ECR Repository
+Repository tags:
+```
+ecr_sync_constraint = "-ge v1.1.1" // equivalent of >= v1.1.1 other operators ( -gt -le -lt) because >= chars is not allowed in aws tags
+ecr_sync_source = "docker.io/owner/image"
+ecr_sync_include_rls = "ubuntu,rc" // releases to include v.1.2-ubuntu v1.2-RC-1
+ecr_sync_release_only = "true" // only release version exclude normal tags
+ecr_sync_max_results = "10"
+ecr_sync_exclude_rls = "RC,UBUNTU" // exclude certain releases 
+ecr_sync_exclude_tags = "1.1.1,2.2.2" // exclude specific tags
+ecr_sync_include_tags = "1.1.1,2.2.2" // exclude specific tags
+```
 ## Versions 
 
 use constraint for version constraints 
@@ -145,47 +158,10 @@ make init
 
 ```
 
-## before a pr
-
-before submitting a pr execute:
-```
-make pre-pr
-```
-
-## test
-
-Before testing aws functions make sure the aws environment vars are set.
-```
-make test
-```
-
-## test in visual studio code
-prerequisites
-
-install delve:
-```
-go get -u github.com/go-delve/delve
-go get -u github.com/go-delve/delve/cmd/dlv
-
-```
-
 ## Create Test for functions
 With the gotests tool you can auto generate go tests for new functions:
 https://github.com/cweill/gotests
 
-```
-make tests
-```
-
-Set breakpoints and run the launch tests debug
-
-## Check code
-```
-make test
-make quality
-make cyclo
-make pre-pr
-```
 
 ## references
 * https://github.com/containers/skopeo
@@ -198,6 +174,7 @@ make pre-pr
 ### used modules
 * https://github.com/containers/image
 * https://github.com/nikoksr/notify
+* https://github.com/google/go-containerregistry/blob/main/cmd/crane/doc/crane.md
 
 ## cloned modules
 * https://github.com/hashicorp/go-version@v1.3.0

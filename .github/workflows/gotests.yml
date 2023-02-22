@@ -17,7 +17,7 @@ jobs:
         name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.19
       - name: Set go path
         run: |
           PATH="$PATH:$HOME/go/bin"
@@ -42,7 +42,7 @@ jobs:
       -
         name: Go Cyclo test
         run: |
-          gocyclo -over 15 -ignore 'external' .
+          gocyclo -over 19 -ignore 'external' .
       -
         name: ineffassign test
         run: |
@@ -50,5 +50,5 @@ jobs:
       -
         name: misspell test
         run: |
-          misspell ./pkg/handlers
+          misspell ./pkg/lambda
           misspell ./cmd

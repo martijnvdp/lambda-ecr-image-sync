@@ -1,6 +1,7 @@
-package handlers
+package lambda
 
 import (
+	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -44,27 +45,27 @@ func comparePreReleases(v *version.Version, releases *[]string) bool {
 	return false
 }
 
-func (i *inputImage) checkExcConstraints(v *version.Version, c *version.Constraints) bool {
+func (i *InputImage) checkExcConstraints(v *version.Version, c *version.Constraints) bool {
 	return comparePreReleases(v, &i.ExcludeRLS)
 }
 
-func (i *inputImage) checkExcTags(t string) bool {
+func (i *InputImage) checkExcTags(t string) bool {
 	return compareIncExclTags(&t, &i.ExcludeTags)
 }
 
-func (i *inputImage) checkFilter() bool {
+func (i *InputImage) checkFilter() bool {
 	return len(i.IncludeTags) == 0 && len(i.ExcludeTags) == 0 && !(len(i.IncludeRLS) > 0) && !(len(i.ExcludeRLS) > 0) && i.Constraint == ""
 }
 
-func (i *inputImage) checkIncConstraints(v *version.Version, c *version.Constraints) bool {
+func (i *InputImage) checkIncConstraints(v *version.Version, c *version.Constraints) bool {
 	return comparePreReleases(v, &i.IncludeRLS)
 }
 
-func (i *inputImage) checkIncTags(t string) bool {
+func (i *InputImage) checkIncTags(t string) bool {
 	return compareIncExclTags(&t, &i.IncludeTags)
 }
 
-func (i *inputImage) checkNonVersionTags(tag string) bool {
+func (i *InputImage) checkNonVersionTags(tag string) bool {
 	switch {
 	case len(i.IncludeTags) > 0 && i.checkIncTags(tag):
 		return true
@@ -74,13 +75,13 @@ func (i *inputImage) checkNonVersionTags(tag string) bool {
 	return false
 }
 
-func (i *inputImage) checkVersionTags(v *version.Version, c *version.Constraints) bool {
+func (i *InputImage) checkVersionTags(v *version.Version, c *version.Constraints) bool {
 	switch {
 	case len(i.IncludeTags) > 0 && i.checkIncTags(v.Original()):
 		return true
 	case len(i.ExcludeTags) > 0:
 		return !i.checkExcTags(v.Original())
-	case checkRelease(v, c):
+	case checkRelease(v, c) && !(i.ReleaseOnly):
 		return true
 	case i.checkExcConstraints(v, c):
 		return false
@@ -91,14 +92,14 @@ func (i *inputImage) checkVersionTags(v *version.Version, c *version.Constraints
 	return false
 }
 
-func (i *inputImage) createConstraint() (constraints version.Constraints, err error) {
+func (i *InputImage) createConstraint() (constraints version.Constraints, err error) {
 	if i.Constraint != "" {
 		return version.NewConstraint(i.Constraint)
 	}
 	return version.NewConstraint(noConstraint)
 }
 
-func (i *inputImage) maxResults(globalMaxResults int) (maxResults int) {
+func (i *InputImage) maxResults(globalMaxResults int) (maxResults int) {
 	maxResults = maxInt(globalMaxResults, i.MaxResults)
 
 	if !(maxResults > 0) {
@@ -127,20 +128,25 @@ func parseVersions(tags *[]string) (versionTags []string, nonVersionTags []strin
 }
 
 func sortVersions(rawTags *[]string) (sortedTags []*version.Version, err error) {
-	sortedTags = make([]*version.Version, len(*rawTags))
-	for i, t := range *rawTags {
+	for _, t := range *rawTags {
 		v, err := version.NewVersion(t)
 
 		if err != nil {
-			return sortedTags, err
+			if strings.Contains(err.Error(), "Malformed version:") {
+				log.Println("Received malformed error:", err)
+				err = nil
+			} else {
+				return sortedTags, err
+			}
+		} else {
+			sortedTags = append(sortedTags, v)
 		}
-		sortedTags[i] = v
 	}
 	sort.Sort(version.Collection(sortedTags))
 	return sortedTags, err
 }
 
-func (i *inputImage) checkTagsFromPublicRepo(inputTags *[]string, maxResults int) (result []string, err error) {
+func (i *InputImage) checkTagsFromPublicRepo(inputTags *[]string, maxResults int) (result []string, err error) {
 	maxResults = i.maxResults(maxResults)
 	noFilter := i.checkFilter()
 	versionTags, nonVersionTags := parseVersions(inputTags)
@@ -158,6 +164,9 @@ func (i *inputImage) checkTagsFromPublicRepo(inputTags *[]string, maxResults int
 	// go through non version tags like latest/current/stable
 	if len(nonVersionTags) > 0 {
 		for _, t := range nonVersionTags {
+			if maxResults == 0 {
+				break
+			}
 			switch {
 			case noFilter && maxResults != 0:
 				result = append(result, t)
@@ -171,6 +180,9 @@ func (i *inputImage) checkTagsFromPublicRepo(inputTags *[]string, maxResults int
 
 	// go through correct versioned tags
 	for x := len(sortedTags) - 1; x != -1; {
+		if maxResults == 0 {
+			break
+		}
 		switch {
 		case noFilter && maxResults != 0:
 			result = append(result, (sortedTags)[x].Original())
