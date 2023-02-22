@@ -1,4 +1,4 @@
-package handlers
+package lambda
 
 import (
 	"reflect"
@@ -23,10 +23,10 @@ func Test_newSystemContext(t *testing.T) {
 	}
 }
 
-func Test_inputImage_getTagsFromPublicRepo(t *testing.T) {
+func Test_InputImage_getTagsFromPublicRepo(t *testing.T) {
 	tests := []struct {
 		name     string
-		i        *inputImage
+		i        *InputImage
 		wantTags []string
 		wantErr  bool
 	}{
@@ -36,11 +36,11 @@ func Test_inputImage_getTagsFromPublicRepo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotTags, err := tt.i.getTagsFromPublicRepo()
 			if (err != nil) != tt.wantErr {
-				t.Errorf("inputImage.getTagsFromPublicRepo() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("InputImage.getTagsFromPublicRepo() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(gotTags, tt.wantTags) {
-				t.Errorf("inputImage.getTagsFromPublicRepo() = %v, want %v", gotTags, tt.wantTags)
+				t.Errorf("InputImage.getTagsFromPublicRepo() = %v, want %v", gotTags, tt.wantTags)
 			}
 		})
 	}

@@ -1,4 +1,4 @@
-IMAGE := martijnvdp/ecr-image-sync
+IMAGE := ccv-hosting/ecr-image-sync
 TAG := $(shell git describe --abbrev=0 --tags)
 SHELL := /bin/bash
 export PATH := /home/ubuntu/.local/bin:/home/ubuntu/go/bin:$(PATH)
@@ -37,7 +37,7 @@ init:
 .PHONY: make-tests
 make-tests:
 	which gotests ||go install github.com/cweill/gotests/gotests@latest
-	gotests --all pkg/handlers
+	gotests --all pkg/lambda
 
 .PHONY: pre-pr
 pre-pr: quality typos test fmt

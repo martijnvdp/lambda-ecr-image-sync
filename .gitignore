@@ -1,5 +1,3 @@
 .vscode/launch.json
 main.exe
 main
-main.zip
-pkg/handlers/CSVResults.csv

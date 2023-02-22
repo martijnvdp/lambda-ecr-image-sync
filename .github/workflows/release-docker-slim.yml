@@ -7,7 +7,11 @@ on:
 
 jobs:
   docker-slim-build-container:
-    runs-on: ubuntu-latest
+    name: Build and push container image to ECR
+    runs-on: ubuntu-20.04 # to fix an issue with the GLIBC version beeing too high
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - run: sudo apt update && sudo apt install libdevmapper-dev && sudo apt install libbtrfs-dev && sudo apt install pkg-config
       - 
@@ -19,18 +23,20 @@ jobs:
         name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17
+          go-version: 1.19
       -
         name: Tests
         run: |
           go mod tidy
-          go test -v ./pkg/handlers
-      -
-        name: Login to DockerHub
-        uses: docker/login-action@v1 
+          go test -v ./pkg/lambda
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
         with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
       -
         name: Get Tag Name
         id: tag_name
@@ -39,11 +45,24 @@ jobs:
 
       - name: Build the Docker image
         run: |
-          go build ./cmd/main.go
-          sudo curl https://downloads.dockerslim.com/releases/1.37.2/dist_linux.tar.gz -o ./dist_linux.tar.gz && sudo tar xf ./dist_linux.tar.gz -C . && sudo mv dist_linux/* /usr/bin && sudo chmod +x /usr/bin/docker-slim && sudo chmod +x /usr/bin/docker-slim-sensor
-          docker-slim build --tag martijnvdp/ecr-image-sync:$VERSION --tag martijnvdp/ecr-image-sync:latest --include-cert-all --http-probe=false --continue-after 60 --dockerfile ./Dockerfile --dockerfile-context . --delete-generated-fat-image
-          docker push docker.io/martijnvdp/ecr-image-sync --all-tags
-          
+          sudo curl https://downloads.dockerslim.com/releases/1.40.0/dist_linux.tar.gz -o ./dist_linux.tar.gz && sudo tar xf ./dist_linux.tar.gz -C . && sudo mv dist_linux/* /usr/bin && sudo chmod +x /usr/bin/docker-slim
+          rm ./dist_linux.tar.gz
+          docker-slim build --tag ${{ secrets.AWS_ECR_TARGET }}:$VERSION --tag ${{ secrets.AWS_ECR_TARGET }}:latest --tag ghcr.io/martijnvdp/lambda-ecr-image-sync:$VERSION --tag ghcr.io/martijnvdp/lambda-ecr-image-sync:latest --include-cert-all --http-probe=false --continue-after 60 --dockerfile ./Dockerfile --dockerfile-context . --delete-generated-fat-image
+          docker push ${{ secrets.AWS_ECR_TARGET }} --all-tags
         shell: bash
         env:
           VERSION: ${{ steps.tag_name.outputs.SOURCE_TAG }}
+      - 
+        name: Login to GitHub Container registry
+        uses: docker/login-action@v1
+        env:
+          GITHUB_USER: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          registry: ghcr.io
+          username: $GITHUB_USER
+          password: ${{ secrets.GH_TOKEN }}
+      -
+        name: Push to github ecr
+        run: |
+          docker push ghcr.io/martijnvdp/lambda-ecr-image-sync --all-tags

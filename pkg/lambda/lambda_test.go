@@ -1,4 +1,4 @@
-package handlers
+package lambda
 
 import (
 	"context"
@@ -40,7 +40,7 @@ func Test_getEcrImageName(t *testing.T) {
 		{
 			name: "TestGetECRImageName-FullName",
 			args: args{
-				imageName: "docker.io/martijnvdp/ecr-image-sync",
+				imageName: "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			want: "martijnvdp/ecr-image-sync",
 		},
@@ -146,7 +146,7 @@ func TestLambda(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := Lambda(tt.args.ctx, tt.args.lambdaEvent)
+			got, err := Start(tt.args.ctx, tt.args.lambdaEvent)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Lambda() error = %v, wantErr %v", err, tt.wantErr)
 				return
