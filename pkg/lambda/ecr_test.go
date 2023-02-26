@@ -92,14 +92,6 @@ func (m *mockECRClient) ListTagsForResource(*ecr.ListTagsForResourceInput) (*ecr
 	return output, nil
 }
 
-func compareInputImage(got, want InputImage) bool {
-	return got.Constraint == want.Constraint &&
-		got.MaxResults == want.MaxResults &&
-		got.ReleaseOnly == want.ReleaseOnly &&
-		got.EcrRepoPrefix == want.EcrRepoPrefix &&
-		got.ImageName == want.ImageName
-}
-
 func Test_parseInputImageFromTags(t *testing.T) {
 	type args struct {
 		repo string
@@ -139,7 +131,7 @@ func Test_parseInputImageFromTags(t *testing.T) {
 				t.Errorf("parseInputImageFromTags() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !compareInputImage(gotImage, tt.wantImage) {
+			if !reflect.DeepEqual(gotImage, tt.wantImage) {
 				t.Errorf("parseInputImageFromTags() = %v, want %v", gotImage, tt.wantImage)
 			}
 		})
