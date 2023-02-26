@@ -277,3 +277,39 @@ func (svc *ecrClient) getInputImagesFromTags() (images []InputImage, err error) 
 
 	return images, err
 }
+
+func (svc *ecrClient) getTagsTosync(i *InputImage, ecrImageName, ecrRepoPrefix string, maxResults int, chkDigest bool, env environmentVars) (syncOptions, error) {
+	resultsFromEcr, err := svc.getImagesFromECR(ecrImageName, ecrRepoPrefix, env.awsRegion, i)
+	if err != nil {
+		log.Printf("Error getting tags from ecr: %s", err)
+		return syncOptions{}, err
+	}
+
+	tags, err := i.getTagsFromPublicRepo()
+	if err != nil {
+		log.Printf("Error getting tags from public repo: %s", err)
+		return syncOptions{}, err
+	}
+
+	tags, err = i.checkTagsFromPublicRepo(&tags, maxResults)
+	if err != nil {
+		log.Printf("Error checking tags from public repo: %s", err)
+		return syncOptions{}, err
+	}
+
+	if chkDigest {
+		tags, err = checkDigest(i.ImageName, &tags, &resultsFromEcr)
+	} else {
+		tags, err = checkNoDigest(i.ImageName, &tags, &resultsFromEcr)
+	}
+	if err != nil {
+		log.Printf("Error checking digest: %s", err)
+		return syncOptions{}, err
+	}
+
+	return syncOptions{
+		tags:          tags,
+		ecrRepoPrefix: ecrRepoPrefix,
+		ecrImageName:  ecrImageName,
+	}, err
+}
