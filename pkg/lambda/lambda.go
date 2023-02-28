@@ -16,7 +16,8 @@ type LambdaEvent struct {
 	Action             string       `json:"action"` // s3 or sync
 	CheckDigest        bool         `json:"check_digest"`
 	EcrRepoPrefix      string       `json:"ecr_repo_prefix"`
-	Images             []InputImage `json:"images"`
+	RepositoryARN      string       `json:"repository_arn"` // single ecr repository arn to sync
+	Images             []inputImage `json:"images"`
 	MaxResults         int          `json:"max_results"`
 	SlackChannelID     string       `json:"slack_channel_id"`
 	SlackErrorsOnly    bool         `json:"slack_errors_only"`
@@ -25,7 +26,7 @@ type LambdaEvent struct {
 	SlackMSGSubject    string       `json:"slack_msg_subject"`
 }
 
-type InputImage struct {
+type inputImage struct {
 	Constraint    string   `json:"constraint"`
 	EcrRepoPrefix string   `json:"repo_prefix"`
 	ExcludeRLS    []string `json:"exclude_rls"`
@@ -99,8 +100,10 @@ func returnErr(err error, slackOAuthTokenm, slackChannelID, errSubject, errText 
 
 // Lambda Function for syncing ecr images with public repositories, outputs csv with needed images to S3 bucket.
 func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
-	count := 0
 	var csvContent []csvFormat
+	var images []inputImage
+
+	total := 0
 	zipFile := filepath.Join(tmpDir, "images.zip")
 	csvFile := filepath.Join(tmpDir, "images.csv")
 	dockercfg := filepath.Join(tmpDir, "config.json")
@@ -119,62 +122,58 @@ func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
 			"Error creating ECR client:")
 	}
 
-	// get input images from ECR Repositories which are configured to be synced using tags
-	images, err := svc.getInputImagesFromTags()
+	switch {
+	// if repo_arn is set sync single repo
+	case lambdaEvent.RepositoryARN != "":
+		filter := strings.Replace(lambdaEvent.RepositoryARN, "arn:aws:ecr:"+environmentVars.awsRegion+":"+environmentVars.awsAccount+":repository/", "", -1)
+		log.Printf("Starting lambda for image: %s", filter)
+		images, err = svc.getInputImagesFromTags(filter)
 
-	if err != nil {
-		return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-			"Error getting input images from tags:")
+		if err != nil {
+			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+				"Error getting input images from tags:")
+		}
+	// default case, get images from tags and from input json payload
+	default:
+		images, err = svc.getInputImagesFromTags("*")
+
+		if err != nil {
+			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+				"Error getting input images from tags:")
+		}
+		images = append(images, lambdaEvent.Images...)
 	}
-	totalImages := append(images, lambdaEvent.Images...)
 
-	for _, i := range totalImages {
+	for _, i := range images {
+		count := 0
 		ecrImageName := getEcrImageName(i.ImageName)
-		resultsFromEcr, err := svc.getImagesFromECR(ecrImageName, lambdaEvent.EcrRepoPrefix, environmentVars.awsRegion, &i)
+		tagsToSync, err := svc.getTagsToSync(&i, ecrImageName, tryString(lambdaEvent.EcrRepoPrefix, i.EcrRepoPrefix), lambdaEvent.MaxResults, lambdaEvent.CheckDigest, environmentVars)
 
 		if err != nil {
 			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error searching image: "+i.ImageName+" on private ECR repository:")
-		}
-		tagsFromPublicRepo, err := i.getTagsFromPublicRepo()
-
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error getting tags of image: "+i.ImageName+" from public repo:")
-		}
-		resultsFromPublicRepo, err := i.checkTagsFromPublicRepo(&tagsFromPublicRepo, lambdaEvent.MaxResults)
-
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error while checking tags and constraints of image: "+i.ImageName+" :")
+				"Error getting tags to sync:")
 		}
 
-		if lambdaEvent.CheckDigest {
-			resultsFromPublicRepo, err = checkDigest(i.ImageName, &resultsFromPublicRepo, &resultsFromEcr)
-		} else {
-			resultsFromPublicRepo, err = checkNoDigest(i.ImageName, &resultsFromPublicRepo, &resultsFromEcr)
+		if len(tagsToSync.tags) <= 0 {
+			continue
 		}
 
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error while comparing digest of image: "+i.ImageName+" with digest from ecr:")
-		}
-
-		if lambdaEvent.Action != "s3" {
-			count, err = syncImages(i.ImageName, ecrImageName, i.EcrRepoPrefix, &resultsFromPublicRepo, environmentVars.awsAccount, environmentVars.awsRegion)
-			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-					"Error syncing images:")
-			}
-		} else {
-			csvOutput, err := buildCSVFile(i.ImageName, ecrImageName, i.EcrRepoPrefix, &resultsFromPublicRepo, environmentVars.awsAccount, environmentVars.awsRegion)
+		switch {
+		case lambdaEvent.Action == "s3":
+			csvOutput, err := buildCSVFile(i.ImageName, tagsToSync, environmentVars)
 			if err != nil {
 				return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
 					"Error building csv output:")
 			}
 			csvContent = append(csvContent, csvOutput...)
+		default:
+			count, err = syncImages(i.ImageName, tagsToSync, environmentVars)
+			if err != nil {
+				return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+					"Error syncing images:")
+			}
 		}
-		count = count + len(resultsFromPublicRepo)
+		total = total + count
 	}
 
 	if csvContent != nil && lambdaEvent.Action == "s3" && environmentVars.awsBucket != "" {
@@ -189,7 +188,12 @@ func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
 		return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
 			"Lambda function resulted with error:")
 	}
-	resultMessage := fmt.Sprintf("Successfully synced %q images to the ecr", strconv.Itoa(count))
+
+	if !lambdaEvent.SlackErrorsOnly {
+		sendResultsToSlack(lambdaEvent.SlackMSGHeader, lambdaEvent.SlackMSGSubject, &csvContent, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID)
+	}
+
+	resultMessage := fmt.Sprintf("Successfully synced %s images to the ecr", strconv.Itoa(total))
 	log.Print(resultMessage)
 
 	return response{
