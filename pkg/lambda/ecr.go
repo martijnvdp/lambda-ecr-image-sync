@@ -146,7 +146,6 @@ func (svc *ecrClient) getECRAuthData() (authData, error) {
 		return authData{}, fmt.Errorf("failed to retrieve ecr token: %w", err)
 	}
 
-	// #2
 	if len(base64token.AuthorizationData) == 0 {
 		return authData{}, fmt.Errorf("ecr token is empty")
 	}
@@ -168,19 +167,30 @@ func (svc *ecrClient) getECRAuthData() (authData, error) {
 	}, err
 }
 
-func (svc *ecrClient) getECRRepositories() (repositories []repository, err error) {
-	input := &ecr.DescribeRepositoriesInput{}
-	repos, err := svc.DescribeRepositories(input)
+func (svc *ecrClient) getECRRepositories(filter string) (repositories []repository, err error) {
+	input := &ecr.DescribeRepositoriesInput{
+		MaxResults: aws.Int64(100),
+	}
+	if filter != "*" {
+		input = &ecr.DescribeRepositoriesInput{
+			RepositoryNames: []*string{aws.String(filter)},
+		}
+	}
+
+	// Call DescribeRepositories function with pagination
+	err = svc.DescribeRepositoriesPages(input,
+		func(page *ecr.DescribeRepositoriesOutput, lastPage bool) bool {
+			for _, repo := range page.Repositories {
+				repositories = append(repositories, repository{
+					name: *repo.RepositoryName,
+					arn:  *repo.RepositoryArn,
+				})
+			}
+			return !lastPage // Return true to continue pagination until last page
+		})
 
 	if err != nil {
 		log.Printf("Error: %s", err)
-	}
-
-	for _, repo := range repos.Repositories {
-		repositories = append(repositories, repository{
-			name: *repo.RepositoryName,
-			arn:  *repo.RepositoryArn,
-		})
 	}
 
 	return repositories, err
@@ -234,7 +244,7 @@ func (svc *ecrClient) getTagsFromECRRepositories(repositories *[]repository) (ta
 
 	for _, repo := range *repositories {
 		// Get tags for repo
-		repository_tags, err := svc.ListTagsForResource(&ecr.ListTagsForResourceInput{ResourceArn: aws.String(*&repo.arn)})
+		repository_tags, err := svc.ListTagsForResource(&ecr.ListTagsForResourceInput{ResourceArn: aws.String(repo.arn)})
 
 		if err != nil {
 			log.Printf("Error: %s", err)
@@ -256,8 +266,8 @@ func (svc *ecrClient) getTagsFromECRRepositories(repositories *[]repository) (ta
 	return tags, err
 }
 
-func (svc *ecrClient) getInputImagesFromTags() (images []InputImage, err error) {
-	repositories, err := svc.getECRRepositories()
+func (svc *ecrClient) getInputImagesFromTags(filter string) (images []InputImage, err error) {
+	repositories, err := svc.getECRRepositories(filter)
 	if err != nil {
 		return nil, err
 	}
@@ -276,4 +286,40 @@ func (svc *ecrClient) getInputImagesFromTags() (images []InputImage, err error) 
 	}
 
 	return images, err
+}
+
+func (svc *ecrClient) getTagsTosync(i *InputImage, ecrImageName, ecrRepoPrefix string, maxResults int, chkDigest bool, env environmentVars) (syncOptions, error) {
+	resultsFromEcr, err := svc.getImagesFromECR(ecrImageName, ecrRepoPrefix, env.awsRegion, i)
+	if err != nil {
+		log.Printf("Error getting tags from ecr: %s", err)
+		return syncOptions{}, err
+	}
+
+	tags, err := i.getTagsFromPublicRepo()
+	if err != nil {
+		log.Printf("Error getting tags from public repo: %s", err)
+		return syncOptions{}, err
+	}
+
+	tags, err = i.checkTagsFromPublicRepo(&tags, maxResults)
+	if err != nil {
+		log.Printf("Error checking tags from public repo: %s", err)
+		return syncOptions{}, err
+	}
+
+	if chkDigest {
+		tags, err = checkDigest(i.ImageName, &tags, &resultsFromEcr)
+	} else {
+		tags, err = checkNoDigest(i.ImageName, &tags, &resultsFromEcr)
+	}
+	if err != nil {
+		log.Printf("Error checking digest: %s", err)
+		return syncOptions{}, err
+	}
+
+	return syncOptions{
+		tags:          tags,
+		ecrRepoPrefix: ecrRepoPrefix,
+		ecrImageName:  ecrImageName,
+	}, err
 }
