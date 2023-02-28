@@ -23,6 +23,12 @@ type loginOptions struct {
 	passwordStdin bool
 }
 
+type syncOptions struct {
+	tags          []string
+	ecrRepoPrefix string
+	ecrImageName  string
+}
+
 func login(opts loginOptions) error {
 	if opts.passwordStdin {
 		contents, err := io.ReadAll(os.Stdin)
@@ -77,15 +83,15 @@ func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrRepoPrefi
 	return nil
 }
 
-func syncImages(imageName, ecrImageName, ecrRepoPrefix string, resultsFromPublicRepo *[]string, awsAccount, awsRegion string) (count int, err error) {
-	svc, err := newEcrClient(awsRegion)
+func syncImages(imageName string, options syncOptions, env environmentVars) (count int, err error) {
+	svc, err := newEcrClient(env.awsRegion)
 
 	if err != nil {
 		log.Println("error logging in to ecr: ", err)
 		return 0, err
 	}
 
-	awsPrefix := awsAccount + ".dkr.ecr." + awsRegion + ".amazonaws.com"
+	awsPrefix := env.awsAccount + ".dkr.ecr." + env.awsRegion + ".amazonaws.com"
 	log.Printf("add login for %v", awsPrefix)
 	awsAuthData, err := svc.getECRAuthData()
 
@@ -117,9 +123,9 @@ func syncImages(imageName, ecrImageName, ecrRepoPrefix string, resultsFromPublic
 		}
 	}
 
-	for _, tag := range *resultsFromPublicRepo {
-		log.Printf("copying %s:%s to %s/%s/%s:%s", imageName, tag, awsPrefix, ecrRepoPrefix, ecrImageName, tag)
-		err := svc.copyImageWithCrane(imageName, tag, awsPrefix, ecrRepoPrefix, ecrImageName)
+	for _, tag := range options.tags {
+		log.Printf("copying %s:%s to %s/%s/%s:%s", imageName, tag, awsPrefix, options.ecrRepoPrefix, options.ecrImageName, tag)
+		err := svc.copyImageWithCrane(imageName, tag, awsPrefix, options.ecrRepoPrefix, options.ecrImageName)
 
 		if err != nil {
 			log.Println("error copying image: ", err)

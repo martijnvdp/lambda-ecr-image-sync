@@ -83,11 +83,11 @@ func createZipFile(file string, target string) error {
 	return z.Close()
 }
 
-func buildCSVFile(imageName, ecrImageName, ecrRepoPrefix string, resultsFromPublicRepo *[]string, awsAccount, awsRegion string) (csvContent []csvFormat, err error) {
-	for _, tag := range *resultsFromPublicRepo {
+func buildCSVFile(imageName string, options syncOptions, env environmentVars) (csvContent []csvFormat, err error) {
+	for _, tag := range options.tags {
 		csvContent = append(csvContent, csvFormat{
 			imageName:   imageName,
-			imageECRURL: awsAccount + `.dkr.ecr.` + awsRegion + `.amazonaws.com/` + ecrRepoPrefix + `/` + ecrImageName,
+			imageECRURL: env.awsAccount + `.dkr.ecr.` + env.awsRegion + `.amazonaws.com/` + options.ecrRepoPrefix + `/` + options.ecrImageName,
 			imageTag:    tag,
 		})
 	}
