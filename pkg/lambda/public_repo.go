@@ -17,7 +17,7 @@ func newSystemContext() *types.SystemContext {
 	return ctx
 }
 
-func (i *InputImage) getTagsFromPublicRepo() (tags []string, err error) {
+func (i *inputImage) getTagsFromPublicRepo() (tags []string, err error) {
 	ctx := context.TODO()
 	systemContext := newSystemContext()
 	imageref, err := alltransports.ParseImageName("docker://" + i.ImageName)
