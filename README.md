@@ -1,4 +1,5 @@
 # Lambda-ecr-image-sync
+![docker build](https://github.com/martijnvdp/lambda-ecr-image-sync/actions/workflows/release-docker-slim.yml/badge.svg)
 
 This is a Golang Lambda function that compares images between ECR and public repositories such as DockerHub, Quay.io, and GCR.io. It has the capability to sync the images directly to the target ECR on AWS or output a zipped CSV file with the missing images/tags to an S3 bucket. Another script can then pick up the CSV file to sync the missing images.
 
