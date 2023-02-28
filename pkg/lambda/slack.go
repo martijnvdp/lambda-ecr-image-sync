@@ -28,13 +28,16 @@ func sendSlackNotification(slackToken, channelID string, subject, message string
 	return err
 }
 
-func sendResultsToSlack(messageHeader, messageSubject string, token, channelID string) {
+func sendResultsToSlack(messageHeader, messageSubject string, csvContent *[]csvFormat, token, channelID string) {
 	if token == "" {
 		return
 	}
 	subject := tryString(messageSubject, "Lambda ECR-IMAGE-SYNC has run.") + "\n"
 	message := tryString(messageHeader, "The following ecr images are being Synced to ECR:") + "\n"
 
+	for _, r := range *csvContent {
+		message = message + r.imageName + ":" + r.imageTag + "\n"
+	}
 	currentTime := time.Now()
 	message = message + "\n" + currentTime.Format("2006-01-02 15:04:05")
 	sendSlackNotification(token, channelID, subject, message)

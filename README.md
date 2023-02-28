@@ -1,5 +1,4 @@
-[![goreleaser](https://github.com/martijnvdp/lambda-ecr-image-sync/actions/workflows/go.yml/badge.svg)](https://github.com/martijnvdp/lambda-ecr-image-sync/actions/workflows/go.yml)
-# ecr-image-sync
+# Lambda-ecr-image-sync
 
 This is a Golang Lambda function that compares images between ECR and public repositories such as DockerHub, Quay.io, and GCR.io. It has the capability to sync the images directly to the target ECR on AWS or output a zipped CSV file with the missing images/tags to an S3 bucket. Another script can then pick up the CSV file to sync the missing images.
 
@@ -41,8 +40,9 @@ Lambda event data:
 
 ```hcl
 {
-"ecr_repo_prefix":"base/images" \\optional global_ecr_repo_prefix
-"images": [
+"ecr_repo_prefix":"base/images" // optional global_ecr_repo_prefix
+"repository_arn":"arn:aws:ecr:us-east-1:123456789012:repository/base/infra/datadog/datadog-operator" //optional to sync a single repository
+"images": [ // optional images payload to sync
       {
         "constraint": "~>2.0" 
         "exclude_rls": ["beta","rc"] \\ excluded pre-releases matches the text after eg: 1.1-beta beta
