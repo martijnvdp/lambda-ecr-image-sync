@@ -16,9 +16,9 @@ type LambdaEvent struct {
 	Action             string       `json:"action"` // s3 or sync
 	CheckDigest        bool         `json:"check_digest"`
 	EcrRepoPrefix      string       `json:"ecr_repo_prefix"`
-	RepositoryARN      string       `json:"repository_arn"` // single ecr repository arn to sync
 	Images             []inputImage `json:"images"`
 	MaxResults         int          `json:"max_results"`
+	RepositoryARN      string       `json:"repository_arn"` // single repository arn to sync a single repository
 	SlackChannelID     string       `json:"slack_channel_id"`
 	SlackErrorsOnly    bool         `json:"slack_errors_only"`
 	SlackMSGErrSubject string       `json:"slack_msg_err_subject"`
@@ -106,7 +106,7 @@ func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
 	total := 0
 	zipFile := filepath.Join(tmpDir, "images.zip")
 	csvFile := filepath.Join(tmpDir, "images.csv")
-	dockercfg := filepath.Join(tmpDir, "config.json")
+	dockercfg := filepath.Dir(tmpDir)
 	environmentVars, err := getEnvironmentVars()
 	errSubject := tryString(lambdaEvent.SlackMSGErrSubject, "The following error has occurred during the lambda ecr-image-sync:")
 	os.Setenv("DOCKER_CONFIG", dockercfg)
@@ -123,15 +123,15 @@ func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
 	}
 
 	switch {
-	// if repo_arn is set sync single repo
+	// if RepositoryARN is set, sync single repository
 	case lambdaEvent.RepositoryARN != "":
 		filter := strings.Replace(lambdaEvent.RepositoryARN, "arn:aws:ecr:"+environmentVars.awsRegion+":"+environmentVars.awsAccount+":repository/", "", -1)
-		log.Printf("Starting lambda for image: %s", filter)
+		log.Printf("Starting lambda for repository: %s", filter)
 		images, err = svc.getInputImagesFromTags(filter)
 
 		if err != nil {
 			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error getting input images from tags:")
+				"Error getting input images from tags: "+filter)
 		}
 	// default case, get images from tags and from input json payload
 	default:
@@ -139,13 +139,15 @@ func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
 
 		if err != nil {
 			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error getting input images from tags:")
+				"Error getting input images from tags")
 		}
 		images = append(images, lambdaEvent.Images...)
+		log.Printf("Starting lambda for %s repositories", strconv.Itoa(len(images)))
 	}
 
 	for _, i := range images {
 		count := 0
+		log.Printf("Processing image: %s", i.ImageName)
 		ecrImageName := getEcrImageName(i.ImageName)
 		tagsToSync, err := svc.getTagsToSync(&i, ecrImageName, tryString(lambdaEvent.EcrRepoPrefix, i.EcrRepoPrefix), lambdaEvent.MaxResults, lambdaEvent.CheckDigest, environmentVars)
 
