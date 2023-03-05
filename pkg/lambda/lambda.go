@@ -13,29 +13,27 @@ import (
 
 // LambdaEvent lambda input event data, fields have to be exported
 type LambdaEvent struct {
-	Action             string       `json:"action"` // s3 or sync
-	CheckDigest        bool         `json:"check_digest"`
-	EcrRepoPrefix      string       `json:"ecr_repo_prefix"`
-	Images             []inputImage `json:"images"`
-	MaxResults         int          `json:"max_results"`
-	RepositoryARN      string       `json:"repository_arn"` // single repository arn to sync a single repository
-	SlackChannelID     string       `json:"slack_channel_id"`
-	SlackErrorsOnly    bool         `json:"slack_errors_only"`
-	SlackMSGErrSubject string       `json:"slack_msg_err_subject"`
-	SlackMSGHeader     string       `json:"slack_msg_header"`
-	SlackMSGSubject    string       `json:"slack_msg_subject"`
+	Action             string   `json:"action"` // s3 or sync
+	CheckDigest        bool     `json:"check_digest"`
+	Repositories       []string `json:"repositories"`
+	MaxResults         int      `json:"max_results"`
+	SlackChannelID     string   `json:"slack_channel_id"`
+	SlackErrorsOnly    bool     `json:"slack_errors_only"`
+	SlackMSGErrSubject string   `json:"slack_msg_err_subject"`
+	SlackMSGHeader     string   `json:"slack_msg_header"`
+	SlackMSGSubject    string   `json:"slack_msg_subject"`
 }
 
-type inputImage struct {
-	Constraint    string   `json:"constraint"`
-	EcrRepoPrefix string   `json:"repo_prefix"`
-	ExcludeRLS    []string `json:"exclude_rls"`
-	ExcludeTags   []string `json:"exclude_tags"`
-	ImageName     string   `json:"image_name"`
-	IncludeRLS    []string `json:"include_rls"`
-	IncludeTags   []string `json:"include_tags"`
-	MaxResults    int      `json:"max_results"`
-	ReleaseOnly   bool     `json:"release_only"`
+type inputRepository struct {
+	constraint   string
+	ecrImageName string
+	excludeRLS   []string
+	excludeTags  []string
+	source       string
+	includeRLS   []string
+	includeTags  []string
+	maxResults   int
+	releaseOnly  bool
 }
 
 type response struct {
@@ -52,6 +50,7 @@ type environmentVars struct {
 
 var tmpDir string
 
+// getEnvironmentVars returns environment variables
 func getEnvironmentVars() (vars environmentVars, err error) {
 	vars = environmentVars{
 		awsRegion:       os.Getenv("AWS_REGION"),
@@ -66,18 +65,7 @@ func getEnvironmentVars() (vars environmentVars, err error) {
 	return vars, err
 }
 
-func getEcrImageName(imageName string) string {
-	split := strings.Split(imageName, "/")
-	switch {
-	case len(split) == 3:
-		return (split[1] + "/" + split[2])
-	case strings.Contains(split[0], "."):
-		return split[1]
-	default:
-		return (split[0] + "/" + split[1])
-	}
-}
-
+// init creates a temp directory for the lambda function
 func init() {
 	var err error
 	tmpDir, err = ioutil.TempDir("", "")
@@ -87,6 +75,7 @@ func init() {
 	}
 }
 
+// returnErr returns an error and sends a slack notification
 func returnErr(err error, slackOAuthTokenm, slackChannelID, errSubject, errText string) (response, error) {
 	sendSlackNotification(slackOAuthTokenm, slackChannelID, errSubject, fmt.Sprint(err))
 	errMessage := fmt.Sprintf(errText+" %f", err)
@@ -98,61 +87,67 @@ func returnErr(err error, slackOAuthTokenm, slackChannelID, errSubject, errText 
 	}, err
 }
 
-// Lambda Function for syncing ecr images with public repositories, outputs csv with needed images to S3 bucket.
-func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
-	var csvContent []csvFormat
-	var images []inputImage
+// ecrRepoNamesFromAWSARNs returns a slice of repository names from a slice of AWS ARNs
+func ecrRepoNamesFromAWSARNs(arns []string, region, account string) []string {
+	var names []string
+	for _, arn := range arns {
+		names = append(names, strings.Replace(arn, "arn:aws:ecr:"+region+":"+account+":repository/", "", -1))
+	}
+	return names
+}
 
-	total := 0
-	zipFile := filepath.Join(tmpDir, "images.zip")
-	csvFile := filepath.Join(tmpDir, "images.csv")
-	dockercfg := filepath.Dir(tmpDir)
+// Start Lambda Function for syncing ecr images with public repositories, outputs csv with needed images to S3 bucket.
+func Start(ctx context.Context, event LambdaEvent) (response, error) {
+	const (
+		imagesZipFile = "images.zip"
+		imagesCSVFile = "images.csv"
+	)
+
+	var (
+		csvContent   []csvFormat
+		dockerConfig = filepath.Dir(tmpDir)
+		errSubject   = tryString(event.SlackMSGErrSubject, "The following error has occurred during the lambda ecr-image-sync:")
+		repositories []inputRepository
+		total        int
+	)
 	environmentVars, err := getEnvironmentVars()
-	errSubject := tryString(lambdaEvent.SlackMSGErrSubject, "The following error has occurred during the lambda ecr-image-sync:")
-	os.Setenv("DOCKER_CONFIG", dockercfg)
+
+	zipFile := filepath.Join(tmpDir, imagesZipFile)
+	csvFile := filepath.Join(tmpDir, imagesCSVFile)
+	os.Setenv("DOCKER_CONFIG", dockerConfig)
 
 	if err != nil {
-		return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 			"Error reading environment variables , or not set:")
 	}
 	svc, err := newEcrClient(environmentVars.awsRegion)
 
 	if err != nil {
-		return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 			"Error creating ECR client:")
 	}
 
 	switch {
-	// if RepositoryARN is set, sync single repository
-	case lambdaEvent.RepositoryARN != "":
-		filter := strings.Replace(lambdaEvent.RepositoryARN, "arn:aws:ecr:"+environmentVars.awsRegion+":"+environmentVars.awsAccount+":repository/", "", -1)
-		log.Printf("Starting lambda for repository: %s", filter)
-		images, err = svc.getInputImagesFromTags(filter)
-
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error getting input images from tags: "+filter)
-		}
-	// default case, get images from tags and from input json payload
+	// if Repositories is set, get sync options from tags for the specified repositories arns
+	case len(event.Repositories) > 0:
+		names := ecrRepoNamesFromAWSARNs(event.Repositories, environmentVars.awsRegion, environmentVars.awsAccount)
+		repositories, err = svc.getinputRepositorysFromTags(names)
+	// default case, lookup all configured repositories
 	default:
-		images, err = svc.getInputImagesFromTags("*")
-
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error getting input images from tags")
-		}
-		images = append(images, lambdaEvent.Images...)
-		log.Printf("Starting lambda for %s repositories", strconv.Itoa(len(images)))
+		repositories, err = svc.getinputRepositorysFromTags(nil)
 	}
+	if err != nil {
+		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+			"Error getting input images from tags")
+	}
+	log.Printf("Starting lambda for %s repositories", strconv.Itoa(len(repositories)))
 
-	for _, i := range images {
-		count := 0
-		log.Printf("Processing image: %s", i.ImageName)
-		ecrImageName := getEcrImageName(i.ImageName)
-		tagsToSync, err := svc.getTagsToSync(&i, ecrImageName, tryString(lambdaEvent.EcrRepoPrefix, i.EcrRepoPrefix), lambdaEvent.MaxResults, lambdaEvent.CheckDigest, environmentVars)
+	for _, i := range repositories {
+		log.Printf("Processing repository: %s", i.source)
+		tagsToSync, err := svc.getTagsToSync(&i, i.ecrImageName, event.MaxResults, event.CheckDigest, environmentVars)
 
 		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 				"Error getting tags to sync:")
 		}
 
@@ -161,41 +156,41 @@ func Start(ctx context.Context, lambdaEvent LambdaEvent) (response, error) {
 		}
 
 		switch {
-		case lambdaEvent.Action == "s3":
-			csvOutput, err := buildCSVFile(i.ImageName, tagsToSync, environmentVars)
+		case event.Action == "s3":
+			csvOutput, err := buildCSVFile(i.source, tagsToSync, environmentVars)
 			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 					"Error building csv output:")
 			}
 			csvContent = append(csvContent, csvOutput...)
 		default:
-			count, err = syncImages(i.ImageName, tagsToSync, environmentVars)
+			err = svc.syncImages(i.source, tagsToSync, environmentVars)
 			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-					"Error syncing images:")
+				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+					"Error syncing repositories:")
 			}
 		}
-		total = total + count
+		total = total + len(tagsToSync.tags)
 	}
+	resultMessage := fmt.Sprintf("Successfully synced %s images to the ecr", strconv.Itoa(total))
 
-	if csvContent != nil && lambdaEvent.Action == "s3" && environmentVars.awsBucket != "" {
+	if csvContent != nil && event.Action == "s3" && environmentVars.awsBucket != "" {
 
 		if err := outputToS3Bucket(csvContent, csvFile, zipFile, environmentVars.awsRegion, environmentVars.awsBucket); err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
-				"Error writing output to s3 bucket")
+			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+				"Error while writing zip file to the S3 Bucket with error:")
 		}
+
+		if !event.SlackErrorsOnly {
+			sendResultsToSlack(event.SlackMSGHeader, event.SlackMSGSubject, &csvContent, environmentVars.slackOAuthToken, event.SlackChannelID)
+		}
+		resultMessage = fmt.Sprintf("Successfully added %s images to the csv", strconv.Itoa(total))
 	}
 
 	if err != nil {
-		return returnErr(err, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID, errSubject,
+		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 			"Lambda function resulted with error:")
 	}
-
-	if !lambdaEvent.SlackErrorsOnly {
-		sendResultsToSlack(lambdaEvent.SlackMSGHeader, lambdaEvent.SlackMSGSubject, &csvContent, environmentVars.slackOAuthToken, lambdaEvent.SlackChannelID)
-	}
-
-	resultMessage := fmt.Sprintf("Successfully synced %s images to the ecr", strconv.Itoa(total))
 	log.Print(resultMessage)
 
 	return response{

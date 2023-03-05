@@ -3,7 +3,6 @@ package lambda
 import (
 	"reflect"
 	"testing"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/ecr"
@@ -12,14 +11,6 @@ import (
 
 type mockECRClient struct {
 	ecriface.ECRAPI
-}
-
-func parseTime(s string) time.Time {
-	t, err := time.Parse(time.RFC3339, s)
-	if err != nil {
-		panic(err)
-	}
-	return t
 }
 
 // mock repositories
@@ -91,7 +82,7 @@ func (m *mockECRClient) ListTagsForResource(*ecr.ListTagsForResourceInput) (*ecr
 	return output, nil
 }
 
-func Test_parseinputImageFromTags(t *testing.T) {
+func Test_parseinputRepositoryFromTags(t *testing.T) {
 	type args struct {
 		repo string
 		tags map[string]string
@@ -99,13 +90,13 @@ func Test_parseinputImageFromTags(t *testing.T) {
 	tests := []struct {
 		name      string
 		args      args
-		wantImage inputImage
+		wantImage inputRepository
 		wantErr   bool
 	}{
 		{
-			name: "test parseinputImageFromTags",
+			name: "test parseinputRepositoryFromTags",
 			args: args{
-				repo: "base/infra/datadog/datadog-operator",
+				repo: "dev/test/datadog/datadog-operator",
 				tags: map[string]string{
 					"ecr_sync_opt":         "in",
 					"ecr_sync_max_results": "10",
@@ -113,127 +104,32 @@ func Test_parseinputImageFromTags(t *testing.T) {
 					"ecr_sync_source":      "docker.io/datadog/datadog-operator",
 				},
 			},
-			wantImage: inputImage{
-				Constraint:    ">= v1.1.1",
-				MaxResults:    10,
-				ReleaseOnly:   false,
-				EcrRepoPrefix: "base/infra",
-				ImageName:     "docker.io/datadog/datadog-operator",
+			wantImage: inputRepository{
+				constraint:   ">= v1.1.1",
+				ecrImageName: "dev/test/datadog/datadog-operator",
+				maxResults:   10,
+				releaseOnly:  false,
+				source:       "docker.io/datadog/datadog-operator",
 			},
 			wantErr: false,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotImage := parseInputImageFromTags(tt.args.repo, tt.args.tags)
+			gotImage := parseinputRepositoryFromTags(tt.args.repo, tt.args.tags)
 			if !reflect.DeepEqual(gotImage, tt.wantImage) {
-				t.Errorf("parseinputImageFromTags() = %v, want %v", gotImage, tt.wantImage)
+				t.Errorf("parseinputRepositoryFromTags() = %v, want %v", gotImage, tt.wantImage)
 			}
 		})
 	}
 }
 
-// test the getECRRepositories function
-// func TestGetECRRepositories(t *testing.T) {
-// 	// Initialize the ecrClient with a mock implementation of the ECRAPI interface
-// 	client := &ecrClient{&mockECRClient{}}
-
-// 	// Call the function being tested
-// 	repositories, err := client.getECRRepositories("*")
-
-// 	// Verify the results
-// 	if err != nil {
-// 		t.Errorf("Unexpected error: %v", err)
-// 	}
-// 	if len(repositories) != 2 {
-// 		t.Errorf("Expected 2 repositories, but got %d", len(repositories))
-// 	}
-// 	if repositories[0].name != "base/infra/datadog/datadog-operator" {
-// 		t.Errorf("Expected first repository name to be 'repo1', but got %s", repositories[0].name)
-// 	}
-// 	if repositories[1].arn != "arn:aws:ecr:us-east-1:123456789012:repository/base/infra/gatekeeper/gatekeeper" {
-// 		t.Errorf("Expected second repository ARN to be 'arn:aws:ecr:us-east-1:123456789012:repository/base/infra/gatekeeper/gatekeeper', but got %s", repositories[1].arn)
-// 	}
-// }
-
-// test the getTagsFromECRRepositories function
-// func TestGetTagsFromECRRepositories(t *testing.T) {
-
-// 	// Initialize the ecrClient with a mock implementation of the ECRAPI interface
-// 	client := &ecrClient{&mockECRClient{}}
-
-// 	// Call the function being tested
-// 	repositories, _ := client.getECRRepositories("*")
-
-// 	// Call the function being tested
-// 	tags, err := client.getTagsFromECRRepositories(
-// 		&repositories,
-// 	)
-
-// 	// Verify the results
-// 	if err != nil {
-// 		t.Errorf("Unexpected error: %v", err)
-// 	}
-// 	// verify the tags
-// 	if len(tags) != 2 {
-// 		t.Errorf("Expected 2 tags, but got %d", len(tags))
-// 	}
-// 	tag1 := false
-// 	for _, tag := range tags["base/infra/datadog/datadog-operator"].tags {
-// 		if *tag.Key == "ecr_sync_opt" && *tag.Value == "in" {
-// 			tag1 = true
-// 		}
-// 	}
-// 	if !tag1 {
-// 		t.Errorf("Expected tag1 to be true, but got %t", tag1)
-// 	}
-// }
-
-// test parseinputImageFromTags function
-// func TestParseinputImageFromTags(t *testing.T) {
-
-// 	// Initialize the ecrClient with a mock implementation of the ECRAPI interface
-// 	client := &ecrClient{&mockECRClient{}}
-
-// 	// Call the function being tested
-// 	repositories, _ := client.getECRRepositories("*")
-
-// 	// Call the function being tested
-// 	tags, _ := client.getTagsFromECRRepositories(
-// 		&repositories,
-// 	)
-// 	var err error
-// 	images := make(map[string]inputImage)
-// 	// Call the function being tested
-// 	for repo, tags := range tags {
-// 		image, err := parseinputImageFromTags(repo, parseTags(tags.tags))
-// 		if err != nil {
-// 			log.Printf("Error: %s", err)
-// 		}
-// 		images[repo] = image
-// 	}
-// 	// Verify the results
-// 	if err != nil {
-// 		t.Errorf("Unexpected error: %v", err)
-// 	}
-// 	// verify the inputImage
-// 	if len(images) != 2 {
-// 		t.Errorf("Expected 2 inputImage, but got %d", len(images))
-// 	}
-// 	if images["base/infra/datadog/datadog-operator"].ImageName != "docker.io/datadog/operator" {
-// 		t.Errorf("Expected repository to be 'docker.io/datadog/operator', but got %s", images["base/infra/datadog/datadog-operator"].ImageName)
-// 	}
-// 	if images["base/infra/datadog/datadog-operator"].Constraint != "> v1.1.1" {
-// 		t.Errorf("Expected constraint to be '> v1.1.1', but got %s", images["base/infra/datadog/datadog-operator"].Constraint)
-// 	}
-// }
-
-func Test_inputImage_getImagesFromECR(t *testing.T) {
+func Test_inputRepository_getImagesFromECR(t *testing.T) {
 	type args struct {
-		ecrImageName  string
-		ecrRepoPrefix string
-		region        string
-		inputImage    *inputImage
+		ecrsource       string
+		ecrRepoPrefix   string
+		region          string
+		inputRepository *inputRepository
 	}
 	tests := []struct {
 		name        string
@@ -244,12 +140,11 @@ func Test_inputImage_getImagesFromECR(t *testing.T) {
 		{
 			name: "TestGetDatadogEcrImages",
 			args: args{
-				ecrImageName:  "datadog/agent",
+				ecrsource:     "datadog/agent",
 				ecrRepoPrefix: "",
 				region:        "eu-west-1",
-				inputImage: &inputImage{
-					EcrRepoPrefix: "base/infra",
-					ImageName:     "docker.io/datadog/agent",
+				inputRepository: &inputRepository{
+					source: "docker.io/datadog/agent",
 				},
 			},
 			wantErr: false,
@@ -268,12 +163,11 @@ func Test_inputImage_getImagesFromECR(t *testing.T) {
 		{
 			name: "TestGetDatadogEcrImagesWithPrefix",
 			args: args{
-				ecrImageName:  "datadog/agent",
+				ecrsource:     "datadog/agent",
 				ecrRepoPrefix: "base/infra",
 				region:        "eu-west-1",
-				inputImage: &inputImage{
-					EcrRepoPrefix: "base/infra",
-					ImageName:     "docker.io/datadog/agent",
+				inputRepository: &inputRepository{
+					source: "docker.io/datadog/agent",
 				},
 			},
 			wantErr: false,
@@ -295,13 +189,13 @@ func Test_inputImage_getImagesFromECR(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := ecrClient{&mockECRClient{}}
 
-			gotResults, err := svc.getImagesFromECR(tt.args.ecrImageName, tt.args.ecrRepoPrefix, tt.args.region, tt.args.inputImage)
+			gotResults, err := svc.getImagesFromECR(tt.args.ecrsource, tt.args.region, tt.args.inputRepository)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("inputImage.getImagesFromECR() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("inputRepository.getImagesFromECR() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(gotResults, tt.wantResults) {
-				t.Errorf("inputImage.getImagesFromECR() = %v, want %v", gotResults, tt.wantResults)
+				t.Errorf("inputRepository.getImagesFromECR() = %v, want %v", gotResults, tt.wantResults)
 			}
 		})
 	}

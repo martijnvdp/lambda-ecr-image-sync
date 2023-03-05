@@ -17,10 +17,10 @@ func newSystemContext() *types.SystemContext {
 	return ctx
 }
 
-func (i *inputImage) getTagsFromPublicRepo() (tags []string, err error) {
+func (i *inputRepository) getTagsFromPublicRepo() (tags []string, err error) {
 	ctx := context.TODO()
 	systemContext := newSystemContext()
-	imageref, err := alltransports.ParseImageName("docker://" + i.ImageName)
+	imageref, err := alltransports.ParseImageName("docker://" + i.source)
 
 	if err != nil {
 		return tags, err

@@ -13,7 +13,6 @@ func main() {
 
 	lambdaEvent := ecrImageSync.LambdaEvent{
 		CheckDigest: true,
-		Images:      nil,
 		MaxResults:  5,
 	}
 

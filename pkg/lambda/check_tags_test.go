@@ -5,13 +5,13 @@ import (
 	"testing"
 )
 
-func Test_inputImage_maxResults(t *testing.T) {
+func Test_inputRepository_maxResults(t *testing.T) {
 	type args struct {
 		globalMaxResults int
 	}
 	tests := []struct {
 		name           string
-		i              *inputImage
+		i              *inputRepository
 		args           args
 		wantMaxResults int
 	}{
@@ -19,21 +19,21 @@ func Test_inputImage_maxResults(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if gotMaxResults := tt.i.maxResults(tt.args.globalMaxResults); gotMaxResults != tt.wantMaxResults {
-				t.Errorf("inputImage.maxResults() = %v, want %v", gotMaxResults, tt.wantMaxResults)
+			if gotMaxResults := tt.i.getMaxResults(tt.args.globalMaxResults); gotMaxResults != tt.wantMaxResults {
+				t.Errorf("inputRepository.maxResults() = %v, want %v", gotMaxResults, tt.wantMaxResults)
 			}
 		})
 	}
 }
 
-func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
+func Test_inputRepository_checkTagsFromPublicRepo(t *testing.T) {
 	type args struct {
 		inputTags  []string
 		maxResults int
 	}
 	tests := []struct {
 		name       string
-		i          *inputImage
+		i          *inputRepository
 		args       args
 		wantResult []string
 		wantErr    bool
@@ -43,10 +43,10 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"7.32.1-rc.3-jmx", "7.32.1-rc.3-server_core", "7.32.1-servercore-jmx", "7.32.1-servercore", "latest", "latest-jmx", "latest-py2", "latest-py2-jmx", "latest-servercore", "latest-servercore-jmx", "7.3.x-exemplars"},
 			},
-			i: &inputImage{
-				Constraint: ">= 7.30.0",
-				IncludeRLS: []string{"jmx"},
-				ExcludeRLS: []string{"rc"},
+			i: &inputRepository{
+				constraint: ">= 7.30.0",
+				includeRLS: []string{"jmx"},
+				excludeRLS: []string{"rc"},
 			},
 			wantResult: []string{"7.32.1-servercore-jmx"},
 			wantErr:    false,
@@ -56,7 +56,7 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest-py2", "latest-py2-jmx", "7.3.x-exemplars"},
 			},
-			i:          &inputImage{},
+			i:          &inputRepository{},
 			wantResult: []string{"latest-py2", "latest-py2-jmx"},
 			wantErr:    false,
 		},
@@ -65,7 +65,7 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"9.3.6", "9.3.4", "7.3.x-exemplars", "7.4.x-exemplars", "7.5.x-exemplars"},
 			},
-			i:          &inputImage{},
+			i:          &inputRepository{},
 			wantResult: []string{"9.3.6", "9.3.4"},
 			wantErr:    false,
 		},
@@ -74,9 +74,9 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"v0.0.3", "current", "v0.0.6", "latest", "v0.0.7"},
 			},
-			i: &inputImage{
-				ExcludeTags: []string{"v0.0.3", "v0.0.6"},
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				excludeTags: []string{"v0.0.3", "v0.0.6"},
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"current", "latest", "v0.0.7"},
 			wantErr:    false,
@@ -86,10 +86,10 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"v0.0.3", "current", "v0.0.6", "latest", "v0.0.7"},
 			},
-			i: &inputImage{
-				IncludeTags: []string{"latest", "current"},
-				Constraint:  ">= v0.0.6",
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				includeTags: []string{"latest", "current"},
+				constraint:  ">= v0.0.6",
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"current", "latest", "v0.0.7", "v0.0.6"},
 			wantErr:    false,
@@ -99,9 +99,9 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"v0.0.3", "current", "v0.0.6", "latest", "v0.0.7"},
 			},
-			i: &inputImage{
-				IncludeTags: []string{"latest", "current"},
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				includeTags: []string{"latest", "current"},
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"current", "latest"},
 			wantErr:    false,
@@ -111,9 +111,9 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"v0.0.3", "current", "v0.0.6", "latest", "v0.0.7"},
 			},
-			i: &inputImage{
-				IncludeTags: []string{"v0.0.6", "v0.0.7"},
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				includeTags: []string{"v0.0.6", "v0.0.7"},
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"v0.0.7", "v0.0.6"},
 			wantErr:    false,
@@ -123,10 +123,10 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "v0.0.3", "v0.0.4-debian-r20", "v0.0.5-beta", "v0.0.6-win", "v0.0.7", "v0.0.8-debian", "v0.0.9", "v0.1.0", "v0.1.1"},
 			},
-			i: &inputImage{
-				IncludeRLS: []string{"debian", "win"},
-				Constraint: "< v0.0.8",
-				ImageName:  "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				includeRLS: []string{"debian", "win"},
+				constraint: "< v0.0.8",
+				source:     "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"v0.0.7", "v0.0.6-win", "v0.0.4-debian-r20", "v0.0.3"},
 			wantErr:    false,
@@ -136,10 +136,10 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "v0.0.3", "v0.0.4", "v0.0.5-beta", "v0.0.6", "v0.0.7", "v0.0.8-rc", "v0.0.9", "v0.1.0", "v0.1.1"},
 			},
-			i: &inputImage{
-				IncludeTags: []string{"v0.0.4", "v0.1.1"},
-				Constraint:  "< v0.0.9",
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				includeTags: []string{"v0.0.4", "v0.1.1"},
+				constraint:  "< v0.0.9",
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"v0.1.1", "v0.0.7", "v0.0.6", "v0.0.4", "v0.0.3"},
 			wantErr:    false,
@@ -149,10 +149,10 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "v0.0.3", "v0.0.4", "v0.0.5-beta", "v0.0.6", "v0.0.7", "v0.0.8", "v0.0.9", "v0.1.0", "v0.1.1", "v0.1.6-rc"},
 			},
-			i: &inputImage{
-				ImageName:  "ghcr.io/martijnvdp/ecr-image-sync",
-				IncludeRLS: []string{"rc"},
-				MaxResults: 6,
+			i: &inputRepository{
+				source:     "ghcr.io/martijnvdp/ecr-image-sync",
+				includeRLS: []string{"rc"},
+				maxResults: 6,
 			},
 			wantResult: []string{"v0.1.6-rc"},
 			wantErr:    false,
@@ -162,10 +162,10 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "v0.0.3", "v0.0.4", "v0.0.5", "v0.0.6", "v0.0.7", "v0.0.8", "v0.0.9", "v0.1.0", "v0.1.1"},
 			},
-			i: &inputImage{
-				IncludeTags: []string{"v0.0.4", "v0.1.1"},
-				Constraint:  "< v0.0.7",
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				includeTags: []string{"v0.0.4", "v0.1.1"},
+				constraint:  "< v0.0.7",
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"v0.1.1", "v0.0.6", "v0.0.5", "v0.0.4", "v0.0.3"},
 			wantErr:    false,
@@ -176,9 +176,9 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 				inputTags:  []string{"latest", "v0.0.3", "v0.0.4", "v0.0.5", "v0.0.6", "v0.0.7", "v0.0.8", "v0.0.9", "v0.1.0", "v0.1.1"},
 				maxResults: 2,
 			},
-			i: &inputImage{
-				Constraint: ">= v0.0.8, <= v0.0.9",
-				ImageName:  "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				constraint: ">= v0.0.8, <= v0.0.9",
+				source:     "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"v0.0.9", "v0.0.8"},
 			wantErr:    false,
@@ -189,8 +189,8 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 				inputTags:  []string{"latest", "v0.0.3", "v0.0.4", "v0.0.7", "v0.0.8", "v0.0.9", "v0.1.0", "v0.1.1", "v0.0.5", "v0.0.6"},
 				maxResults: 7,
 			},
-			i: &inputImage{
-				ImageName: "ghcr.io/martijnvdp/ecr-image-sync",
+			i: &inputRepository{
+				source: "ghcr.io/martijnvdp/ecr-image-sync",
 			},
 			wantResult: []string{"latest", "v0.1.1", "v0.1.0", "v0.0.9", "v0.0.8", "v0.0.7", "v0.0.6"},
 			wantErr:    false,
@@ -200,11 +200,11 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "0.3.0-debian-10-r32", "0.5.0-debian-10-r59", "0.9.0-debian-10-r32", "1.5.0-debian-12"},
 			},
-			i: &inputImage{
-				IncludeRLS: []string{"debian", "test"},
-				Constraint: ">= v0.6.0",
-				ImageName:  "docker.io/bitnami/metrics-server",
-				MaxResults: -1,
+			i: &inputRepository{
+				includeRLS: []string{"debian", "test"},
+				constraint: ">= v0.6.0",
+				source:     "docker.io/bitnami/metrics-server",
+				maxResults: -1,
 			},
 			wantResult: []string{"1.5.0-debian-12", "0.9.0-debian-10-r32"},
 			wantErr:    false,
@@ -214,12 +214,12 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "v0.7.0", "0.3.0-debian-10-r32", "0.5.0-debian-10-r59", "0.9.0-debian-10-r32", "1.5.0-debian-12"},
 			},
-			i: &inputImage{
-				IncludeRLS:  []string{"debian", "test"},
-				Constraint:  ">= v0.6.0",
-				ImageName:   "docker.io/bitnami/metrics-server",
-				MaxResults:  -1,
-				ReleaseOnly: true,
+			i: &inputRepository{
+				includeRLS:  []string{"debian", "test"},
+				constraint:  ">= v0.6.0",
+				source:      "docker.io/bitnami/metrics-server",
+				maxResults:  -1,
+				releaseOnly: true,
 			},
 			wantResult: []string{"1.5.0-debian-12", "0.9.0-debian-10-r32"},
 			wantErr:    false,
@@ -228,25 +228,25 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 			args: args{
 				inputTags: []string{"latest", "0.3.0-debian-10-r32", "0.5.0-debian-10-r59", "0.9.0-debian-10-r32", "0.9.0-debian-10-beta", "1.5.0-debian-12", "1.5.0-debian-12-rc"},
 			},
-			i: &inputImage{
-				IncludeRLS: []string{"debian", "test"},
-				ExcludeRLS: []string{"beta", "rc"},
-				Constraint: ">= v0.6.0",
-				ImageName:  "docker.io/bitnami/metrics-server",
-				MaxResults: -1,
+			i: &inputRepository{
+				includeRLS: []string{"debian", "test"},
+				excludeRLS: []string{"beta", "rc"},
+				constraint: ">= v0.6.0",
+				source:     "docker.io/bitnami/metrics-server",
+				maxResults: -1,
 			},
 			wantResult: []string{"1.5.0-debian-12", "0.9.0-debian-10-r32"},
 			wantErr:    false,
 		},
 		{
-			name: "TestExcludeTags",
+			name: "TestexcludeTags",
 			args: args{
 				inputTags: []string{"latest", "v1.4.1", "v1.4.5", "v1.4.6", "v1.4.7", "v1.4.8", "v1.4.9"},
 			},
-			i: &inputImage{
-				ExcludeTags: []string{"v1.4.8", "v1.4.5"},
-				ImageName:   "quay.io/cilium/cilium",
-				MaxResults:  6,
+			i: &inputRepository{
+				excludeTags: []string{"v1.4.8", "v1.4.5"},
+				source:      "quay.io/cilium/cilium",
+				maxResults:  6,
 			},
 			wantResult: []string{"latest", "v1.4.9", "v1.4.7", "v1.4.6", "v1.4.1"},
 			wantErr:    false,
@@ -256,50 +256,50 @@ func Test_inputImage_checkTagsFromPublicRepo(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			gotResult, err := tt.i.checkTagsFromPublicRepo(&tt.args.inputTags, tt.args.maxResults)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("inputImage.checkTagsFromPublicRepo() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("inputRepository.checkTagsFromPublicRepo() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(gotResult, tt.wantResult) {
-				t.Errorf("inputImage.checkTagsFromPublicRepo() = %v, want %v", gotResult, tt.wantResult)
+				t.Errorf("inputRepository.checkTagsFromPublicRepo() = %v, want %v", gotResult, tt.wantResult)
 			}
 		})
 	}
 }
 
-func Test_inputImage_checkTagsFromResultsPublicRepo(t *testing.T) {
+func Test_inputRepository_checkTagsFromResultsPublicRepo(t *testing.T) {
 	type args struct {
 		maxResults int
 	}
 	tests := []struct {
 		name       string
-		i          *inputImage
+		i          *inputRepository
 		args       args
 		wantResult []string
 		wantErr    bool
 	}{
 		{
 			name: "TestCheckTagLiveDataIncludetags2",
-			i: &inputImage{
-				ImageName:   "ghcr.io/martijnvdp/ecr-image-sync",
-				IncludeTags: []string{"v0.1.1", "v0.0.4"},
+			i: &inputRepository{
+				source:      "ghcr.io/martijnvdp/ecr-image-sync",
+				includeTags: []string{"v0.1.1", "v0.0.4"},
 			},
 			wantResult: []string{"v0.1.1", "v0.0.4"},
 			wantErr:    false,
 		},
 		{
 			name: "TestCheckTagLiveDataIncludetags",
-			i: &inputImage{
-				ImageName:   "docker.io/openpolicyagent/gatekeeper",
-				IncludeTags: []string{"v3.4.0", "v3.5.1"},
+			i: &inputRepository{
+				source:      "docker.io/openpolicyagent/gatekeeper",
+				includeTags: []string{"v3.4.0", "v3.5.1"},
 			},
 			wantResult: []string{"v3.5.1", "v3.4.0"},
 			wantErr:    false,
 		},
 		{
 			name: "TestCheckTagLiveData",
-			i: &inputImage{
-				ImageName:  "docker.io/openpolicyagent/gatekeeper",
-				Constraint: ">= 3.5.0, < 3.7.0",
+			i: &inputRepository{
+				source:     "docker.io/openpolicyagent/gatekeeper",
+				constraint: ">= 3.5.0, < 3.7.0",
 			},
 			wantResult: []string{"v3.6.0", "v3.5.2", "v3.5.1", "v3.5.0"},
 			wantErr:    false,
@@ -311,11 +311,11 @@ func Test_inputImage_checkTagsFromResultsPublicRepo(t *testing.T) {
 			if (err == nil) != tt.wantErr {
 				gotResult, err := tt.i.checkTagsFromPublicRepo(&inputTags, tt.args.maxResults)
 				if (err != nil) != tt.wantErr {
-					t.Errorf("inputImage.checkTagsFromPublicRepo() error = %v, wantErr %v", err, tt.wantErr)
+					t.Errorf("inputRepository.checkTagsFromPublicRepo() error = %v, wantErr %v", err, tt.wantErr)
 					return
 				}
 				if !reflect.DeepEqual(gotResult, tt.wantResult) {
-					t.Errorf("inputImage.checkTagsFromPublicRepo() = %v, want %v", gotResult, tt.wantResult)
+					t.Errorf("inputRepository.checkTagsFromPublicRepo() = %v, want %v", gotResult, tt.wantResult)
 				}
 			}
 		})
