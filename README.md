@@ -1,10 +1,9 @@
 # Lambda-ecr-image-sync
 ![docker build](https://github.com/martijnvdp/lambda-ecr-image-sync/actions/workflows/release-docker-slim.yml/badge.svg)
 
-This is a Golang Lambda function that compares images between ECR and public repositories such as DockerHub, Quay.io, and GCR.io. It has the capability to sync the images directly to the target ECR on AWS or output a zipped CSV file with the missing images/tags to an S3 bucket. Another script can then pick up the CSV file to sync the missing images.
+This is a Golang Lambda function that compares images between ECR and public repositories such as DockerHub, Quay.io, and GCR.io and synces/copies the missing images to the ECR. It has the capability to sync the images directly to the target ECR on AWS or output a zipped CSV file with the missing images/tags to an S3 bucket.
 
-The function compares the provided images and tags between ECR and the public registry using the Crane library to login and copy the missing images to the ECR on AWS. If the Action: s3 is set in the Lambda event, the function will only place the missing images in a CSV file in an S3 bucket. This CSV file can be used by other tools, such as CodePipeline, to synchronize the missing images mentioned in the CSV.
-
+The function compares the provided images and tags between ECR and the public registry using the Crane library to login and copy the missing images to the ECR on AWS. 
 This function is compatible with most container registries. For more information, please refer to the container lib at https://github.com/containers/image.
 
 ## Docker images
@@ -18,7 +17,7 @@ Set environment variables in the lambda configuration section. \
 https://github.com/martijnvdp/terraform-ecr-image-sync
 
 Image names format:
-(registry hostname)/imagename/name
+(registry hostname)/Source/name
 
 ```hcl
 docker.io/datadog/agent
@@ -41,26 +40,8 @@ Lambda event data:
 
 ```hcl
 {
-"ecr_repo_prefix":"base/images" // optional global_ecr_repo_prefix
-"repository_arn":"arn:aws:ecr:us-east-1:123456789012:repository/base/infra/datadog/datadog-operator" //optional to sync a single repository
-"images": [ // optional images payload to sync
-      {
-        "constraint": "~>2.0" 
-        "exclude_rls": ["beta","rc"] \\ excluded pre-releases matches the text after eg: 1.1-beta beta
-        "exclude_tags": [],
-        "image_name": "docker.io/hashicorp/tfc-agent",
-        "include_tags": [],
-        "include_rls": ["linux","debian","cee"] \\ included pre-releases matches the text after eg: 1.1-beta beta
-        "max_results": 10
-        "repo_prefix": "ecr/cm" 
-      },  
-      {
-        "exclude_tags": [],
-        "image_name": "docker.io/datadog/agent",
-        "include_tags": ["latest","6.27.0-rc.6"],
-        "repo_prefix": "ecr/cm"
-      }
-    ]
+"repositories": [ // optional if not specified it wil syn call repos that are configured with tags
+  "arn:aws:ecr:us-east-1:123456789012:repository/dev/datadog/datadog-operator","arn:aws:ecr:us-east-1:123456789012:repository/dev/datadog/datadog"]
 "check_digest": true // check digest of existing tags on ecr and only add tags if the digest is not the same
 "max_results": 5
 "slack_channel_id":"CDDF324"

@@ -45,43 +45,43 @@ func comparePreReleases(v *version.Version, releases *[]string) bool {
 	return false
 }
 
-func (i *inputImage) checkExcConstraints(v *version.Version, c *version.Constraints) bool {
-	return comparePreReleases(v, &i.ExcludeRLS)
+func (i *inputRepository) checkExcConstraints(v *version.Version, c *version.Constraints) bool {
+	return comparePreReleases(v, &i.excludeRLS)
 }
 
-func (i *inputImage) checkExcTags(t string) bool {
-	return compareIncExclTags(&t, &i.ExcludeTags)
+func (i *inputRepository) checkExcTags(t string) bool {
+	return compareIncExclTags(&t, &i.excludeTags)
 }
 
-func (i *inputImage) checkFilter() bool {
-	return len(i.IncludeTags) == 0 && len(i.ExcludeTags) == 0 && !(len(i.IncludeRLS) > 0) && !(len(i.ExcludeRLS) > 0) && i.Constraint == ""
+func (i *inputRepository) checkFilter() bool {
+	return len(i.includeTags) == 0 && len(i.excludeTags) == 0 && !(len(i.includeRLS) > 0) && !(len(i.excludeRLS) > 0) && i.constraint == ""
 }
 
-func (i *inputImage) checkIncConstraints(v *version.Version, c *version.Constraints) bool {
-	return comparePreReleases(v, &i.IncludeRLS)
+func (i *inputRepository) checkIncConstraints(v *version.Version, c *version.Constraints) bool {
+	return comparePreReleases(v, &i.includeRLS)
 }
 
-func (i *inputImage) checkIncTags(t string) bool {
-	return compareIncExclTags(&t, &i.IncludeTags)
+func (i *inputRepository) checkIncTags(t string) bool {
+	return compareIncExclTags(&t, &i.includeTags)
 }
 
-func (i *inputImage) checkNonVersionTags(tag string) bool {
+func (i *inputRepository) checkNonVersionTags(tag string) bool {
 	switch {
-	case len(i.IncludeTags) > 0 && i.checkIncTags(tag):
+	case len(i.includeTags) > 0 && i.checkIncTags(tag):
 		return true
-	case len(i.ExcludeTags) > 0 && !i.checkExcTags(tag):
+	case len(i.excludeTags) > 0 && !i.checkExcTags(tag):
 		return true
 	}
 	return false
 }
 
-func (i *inputImage) checkVersionTags(v *version.Version, c *version.Constraints) bool {
+func (i *inputRepository) checkVersionTags(v *version.Version, c *version.Constraints) bool {
 	switch {
-	case len(i.IncludeTags) > 0 && i.checkIncTags(v.Original()):
+	case len(i.includeTags) > 0 && i.checkIncTags(v.Original()):
 		return true
-	case len(i.ExcludeTags) > 0:
+	case len(i.excludeTags) > 0:
 		return !i.checkExcTags(v.Original())
-	case checkRelease(v, c) && !(i.ReleaseOnly):
+	case checkRelease(v, c) && !(i.releaseOnly):
 		return true
 	case i.checkExcConstraints(v, c):
 		return false
@@ -92,22 +92,22 @@ func (i *inputImage) checkVersionTags(v *version.Version, c *version.Constraints
 	return false
 }
 
-func (i *inputImage) createConstraint() (constraints version.Constraints, err error) {
-	if i.Constraint != "" {
-		return version.NewConstraint(i.Constraint)
+func (i *inputRepository) createConstraint() (constraints version.Constraints, err error) {
+	if i.constraint != "" {
+		return version.NewConstraint(i.constraint)
 	}
 	return version.NewConstraint(noConstraint)
 }
 
-func (i *inputImage) maxResults(globalMaxResults int) (maxResults int) {
-	maxResults = maxInt(globalMaxResults, i.MaxResults)
+func (i *inputRepository) getMaxResults(globalMaxResults int) (maxResults int) {
+	maxResults = maxInt(globalMaxResults, i.maxResults)
 
 	if !(maxResults > 0) {
 		maxResults = -1
 	}
 
-	if len(i.IncludeTags) > 0 && i.Constraint == "" {
-		return len(i.IncludeTags)
+	if len(i.includeTags) > 0 && i.constraint == "" {
+		return len(i.includeTags)
 	}
 	return maxResults
 }
@@ -146,8 +146,8 @@ func sortVersions(rawTags *[]string) (sortedTags []*version.Version, err error) 
 	return sortedTags, err
 }
 
-func (i *inputImage) checkTagsFromPublicRepo(inputTags *[]string, maxResults int) (result []string, err error) {
-	maxResults = i.maxResults(maxResults)
+func (i *inputRepository) checkTagsFromPublicRepo(inputTags *[]string, maxResults int) (result []string, err error) {
+	maxResults = i.getMaxResults(maxResults)
 	noFilter := i.checkFilter()
 	versionTags, nonVersionTags := parseVersions(inputTags)
 	sortedTags, err := sortVersions(&versionTags)

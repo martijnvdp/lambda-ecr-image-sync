@@ -24,9 +24,8 @@ type loginOptions struct {
 }
 
 type syncOptions struct {
-	tags          []string
-	ecrRepoPrefix string
-	ecrImageName  string
+	tags         []string
+	ecrImageName string
 }
 
 func login(opts loginOptions) error {
@@ -65,7 +64,7 @@ func login(opts loginOptions) error {
 	return nil
 }
 
-func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrRepoPrefix, ecrImageName string) (err error) {
+func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrImageName string) (err error) {
 	params := crane.Options{
 		Platform: &v1.Platform{
 			Architecture: "amd64",
@@ -75,7 +74,7 @@ func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrRepoPrefi
 
 	opts := []crane.Option{crane.WithPlatform(params.Platform)}
 
-	if err := crane.Copy((imageName + ":" + tag), (awsPrefix + "/" + ecrRepoPrefix + "/" + ecrImageName + ":" + tag), opts...); err != nil {
+	if err := crane.Copy((imageName + ":" + tag), (awsPrefix + "/" + ecrImageName + ":" + tag), opts...); err != nil {
 		log.Printf("error copying image: %v", err)
 		return err
 	}
@@ -83,21 +82,14 @@ func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrRepoPrefi
 	return nil
 }
 
-func syncImages(imageName string, options syncOptions, env environmentVars) (count int, err error) {
-	svc, err := newEcrClient(env.awsRegion)
-
-	if err != nil {
-		log.Println("error logging in to ecr: ", err)
-		return 0, err
-	}
-
+func (svc *ecrClient) syncImages(imageName string, options syncOptions, env environmentVars) error {
 	awsPrefix := env.awsAccount + ".dkr.ecr." + env.awsRegion + ".amazonaws.com"
 	log.Printf("add login for %v", awsPrefix)
 	awsAuthData, err := svc.getECRAuthData()
 
 	if err != nil {
 		log.Println("error getting authdata: ", err)
-		return 0, err
+		return err
 	}
 
 	err = login(loginOptions{
@@ -108,7 +100,7 @@ func syncImages(imageName string, options syncOptions, env environmentVars) (cou
 
 	if err != nil {
 		log.Println("error authentication to ecr: ", err)
-		return 0, err
+		return err
 	}
 
 	if os.Getenv("DOCKER_USERNAME") != "" && os.Getenv("DOCKER_PASSWORD") != "" {
@@ -119,19 +111,18 @@ func syncImages(imageName string, options syncOptions, env environmentVars) (cou
 		})
 		if err != nil {
 			log.Println("error logging in to docker.io: ", err)
-			return 0, err
+			return err
 		}
 	}
 
 	for _, tag := range options.tags {
-		log.Printf("copying %s:%s to %s/%s/%s:%s", imageName, tag, awsPrefix, options.ecrRepoPrefix, options.ecrImageName, tag)
-		err := svc.copyImageWithCrane(imageName, tag, awsPrefix, options.ecrRepoPrefix, options.ecrImageName)
+		log.Printf("copying %s:%s to %s/%s:%s", imageName, tag, awsPrefix, options.ecrImageName, tag)
+		err := svc.copyImageWithCrane(imageName, tag, awsPrefix, options.ecrImageName)
 
 		if err != nil {
 			log.Println("error copying image: ", err)
-			return 0, err
+			return err
 		}
-		count++
 	}
-	return count, nil
+	return err
 }

@@ -16,7 +16,7 @@ import (
 )
 
 type csvFormat struct {
-	imageName   string
+	source      string
 	imageECRURL string
 	imageTag    string
 }
@@ -83,11 +83,11 @@ func createZipFile(file string, target string) error {
 	return z.Close()
 }
 
-func buildCSVFile(imageName string, options syncOptions, env environmentVars) (csvContent []csvFormat, err error) {
+func buildCSVFile(source string, options syncOptions, env environmentVars) (csvContent []csvFormat, err error) {
 	for _, tag := range options.tags {
 		csvContent = append(csvContent, csvFormat{
-			imageName:   imageName,
-			imageECRURL: env.awsAccount + `.dkr.ecr.` + env.awsRegion + `.amazonaws.com/` + options.ecrRepoPrefix + `/` + options.ecrImageName,
+			source:      source,
+			imageECRURL: env.awsAccount + `.dkr.ecr.` + env.awsRegion + `.amazonaws.com/` + options.ecrImageName,
 			imageTag:    tag,
 		})
 	}
@@ -105,7 +105,7 @@ func writeCSVFile(csvContent *[]csvFormat, csvFileName string) (err error) {
 		writer := csv.NewWriter(file)
 
 		for _, value := range *csvContent {
-			data := []string{value.imageName, value.imageECRURL, value.imageTag}
+			data := []string{value.source, value.imageECRURL, value.imageTag}
 
 			if err := writer.Write(data); err != nil {
 				fmt.Println("Error write file")

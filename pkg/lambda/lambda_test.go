@@ -28,41 +28,43 @@ func Test_getEnvironmentVars(t *testing.T) {
 	}
 }
 
-func Test_getEcrImageName(t *testing.T) {
+func Test_ecrRepoNamesFromAWSARNs(t *testing.T) {
 	type args struct {
-		imageName string
+		arns    []string
+		region  string
+		account string
 	}
 	tests := []struct {
 		name string
 		args args
-		want string
+		want []string
 	}{
 		{
-			name: "TestGetECRImageName-FullName",
+			name: "Test_ecrRepoNamesFromAWSARNs-single",
 			args: args{
-				imageName: "ghcr.io/martijnvdp/ecr-image-sync",
+				arns:    []string{"arn:aws:ecr:eu-west-1:123456789:repository/test/dev/ecr-image-sync"},
+				region:  "eu-west-1",
+				account: "123456789",
 			},
-			want: "martijnvdp/ecr-image-sync",
+			want: []string{"test/dev/ecr-image-sync"},
 		},
 		{
-			name: "TestGetECRImageName-NameOnly",
+			name: "Test_ecrRepoNamesFromAWSARNs-multiple",
 			args: args{
-				imageName: "martijnvdp/ecr-image-sync",
+				arns: []string{
+					"arn:aws:ecr:eu-west-1:123456789:repository/test/dev/ecr-image-sync",
+					"arn:aws:ecr:eu-west-1:123456789:repository/dev/nginx",
+				},
+				region:  "eu-west-1",
+				account: "123456789",
 			},
-			want: "martijnvdp/ecr-image-sync",
-		},
-		{
-			name: "TestGetECRImageName-RootImage",
-			args: args{
-				imageName: "docker.io/nginx",
-			},
-			want: "nginx",
+			want: []string{"test/dev/ecr-image-sync", "dev/nginx"},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getEcrImageName(tt.args.imageName); got != tt.want {
-				t.Errorf("getEcrImageName() = %v, want %v", got, tt.want)
+			if got := ecrRepoNamesFromAWSARNs(tt.args.arns, tt.args.region, tt.args.account); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ecrRepoNamesFromAWSARNs() = %v, want %v", got, tt.want)
 			}
 		})
 	}
