@@ -127,15 +127,9 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 			"Error creating ECR client:")
 	}
 
-	switch {
-	// if Repositories is set, get sync options from tags for the specified repositories arns
-	case len(event.Repositories) > 0:
-		names := ecrRepoNamesFromAWSARNs(event.Repositories, environmentVars.awsRegion, environmentVars.awsAccount)
-		repositories, err = svc.getinputRepositorysFromTags(names)
-	// default case, lookup all configured repositories
-	default:
-		repositories, err = svc.getinputRepositorysFromTags(nil)
-	}
+	names := ecrRepoNamesFromAWSARNs(event.Repositories, environmentVars.awsRegion, environmentVars.awsAccount)
+	repositories, err = svc.getinputRepositorysFromTags(names)
+
 	if err != nil {
 		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 			"Error getting input images from tags")
