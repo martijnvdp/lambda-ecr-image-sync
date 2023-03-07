@@ -8,7 +8,7 @@ This function is compatible with most container registries. For more information
 
 ## Docker images
 
-- `docker pull ghcr.io/martijnvdp/ecr-image-sync:latest`
+- `docker pull ghcr.io/martijnvdp/lambda-ecr-image-sync:v1.0.3`
 
 ## usage
 
