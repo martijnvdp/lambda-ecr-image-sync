@@ -57,12 +57,12 @@ Repository tags:
 ```
 ecr_sync_constraint = "-ge v1.1.1" // equivalent of >= v1.1.1 other operators ( -gt -le -lt) because >= chars is not allowed in aws tags
 ecr_sync_source = "docker.io/owner/image"
-ecr_sync_include_rls = "ubuntu,rc" // releases to include v.1.2-ubuntu v1.2-RC-1
+ecr_sync_include_rls = "ubuntu rc" // releases to include v.1.2-ubuntu v1.2-RC-1
 ecr_sync_release_only = "true" // only release version exclude normal tags
 ecr_sync_max_results = "10"
-ecr_sync_exclude_rls = "RC,UBUNTU" // exclude certain releases 
-ecr_sync_exclude_tags = "1.1.1,2.2.2" // exclude specific tags
-ecr_sync_include_tags = "1.1.1,2.2.2" // exclude specific tags
+ecr_sync_exclude_rls = "RC UBUNTU" // exclude certain releases 
+ecr_sync_exclude_tags = "1.1.1 2.2.2" // exclude specific tags
+ecr_sync_include_tags = "1.1.1 2.2.2" // exclude specific tags
 ```
 ## Versions 
 
@@ -70,9 +70,11 @@ use constraint for version constraints
 
 examples:
 ```hcl
-"constraint": "~> v3.0"
-"constraint": "=> v3.0, < v5.0"
-"constraint": "= v3.0"
+"constraint": "-ge v3.0"
+"constraint": "-gt v3.0"
+"constraint": "-le v3.0"
+"constraint": "-lt v3.0"
+
 ```
 
 use include_rls to include certain keywords/pre-releases:
@@ -83,12 +85,12 @@ Example for v1.2-beta-10 it is beta and 10
 to include beta pre-releases: 
 
 ```hcl
-"include_rls": ["beta"]
+"include_rls": "beta"
 ```
 to exclude beta pre-releases: 
 
 ```hcl
-"exclude_rls": ["beta"]
+"exclude_rls": "beta"
 ```
 
 to include debian builds but exclude release candidates,alpha or beta 
@@ -96,8 +98,8 @@ to include debian builds but exclude release candidates,alpha or beta
 v1.2.3-debian-1-rc
 
 ```hcl
-"include_rls": ["debian"]
-"exclude_rls": ["rc","beta","alpha"]
+"include_rls": "debian"
+"exclude_rls": "rc beta alpha"
 ```
 
 See for more info:
