@@ -103,18 +103,6 @@ func (svc *ecrClient) syncImages(imageName string, options syncOptions, env envi
 		return err
 	}
 
-	if os.Getenv("DOCKER_USERNAME") != "" && os.Getenv("DOCKER_PASSWORD") != "" {
-		err = login(loginOptions{
-			serverAddress: "docker.io",
-			user:          os.Getenv("DOCKER_USERNAME"),
-			password:      os.Getenv("DOCKER_PASSWORD"),
-		})
-		if err != nil {
-			log.Println("error logging in to docker.io: ", err)
-			return err
-		}
-	}
-
 	for _, tag := range options.tags {
 		log.Printf("copying %s:%s to %s/%s:%s", imageName, tag, awsPrefix, options.ecrImageName, tag)
 		err := svc.copyImageWithCrane(imageName, tag, awsPrefix, options.ecrImageName)

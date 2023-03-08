@@ -4,7 +4,6 @@ WORKDIR /app
 # Avoid invalidating the `go mod download` cache when only code has changed.
 COPY go.mod go.sum cmd/main.go ./
 RUN go mod download
-RUN apt-get update && apt-get install -yqq libdevmapper1.02.1
 COPY . ./
 RUN go build -o /bin/ecr-image-sync ./main.go
 

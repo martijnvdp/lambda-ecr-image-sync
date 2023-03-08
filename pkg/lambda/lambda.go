@@ -3,7 +3,6 @@ package lambda
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -68,7 +67,7 @@ func getEnvironmentVars() (vars environmentVars, err error) {
 // init creates a temp directory for the lambda function
 func init() {
 	var err error
-	tmpDir, err = ioutil.TempDir("", "")
+	tmpDir, err = os.MkdirTemp("", "")
 
 	if err != nil {
 		log.Fatal(err)
@@ -127,6 +126,16 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 			"Error creating ECR client:")
 	}
 
+	if os.Getenv("DOCKER_USERNAME") != "" && os.Getenv("DOCKER_PASSWORD") != "" {
+		err = login(loginOptions{
+			serverAddress: "docker.io",
+			user:          os.Getenv("DOCKER_USERNAME"),
+			password:      os.Getenv("DOCKER_PASSWORD"),
+		})
+		if err != nil {
+			log.Println("error logging in to docker.io: ", err)
+		}
+	}
 	names := ecrRepoNamesFromAWSARNs(event.Repositories, environmentVars.awsRegion, environmentVars.awsAccount)
 	repositories, err = svc.getinputRepositorysFromTags(names)
 
