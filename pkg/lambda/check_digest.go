@@ -1,7 +1,6 @@
 package lambda
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -58,7 +57,6 @@ func checkDigest(imageName string, resultPublicRepoTags *[]string, resultsFromEc
 			match := (*resultsFromEcr)[imageName+":"+tag].hash == digest
 
 			if !match {
-				fmt.Printf("no match %s", imageName)
 				result = append(result, tag)
 			}
 		}
