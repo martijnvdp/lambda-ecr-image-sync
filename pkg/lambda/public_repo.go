@@ -1,34 +1,25 @@
 package lambda
 
 import (
-	"context"
+	"fmt"
 
-	"github.com/containers/image/v5/docker"
-	"github.com/containers/image/v5/transports/alltransports"
-	"github.com/containers/image/v5/types"
+	"github.com/google/go-containerregistry/pkg/crane"
+	v1 "github.com/google/go-containerregistry/pkg/v1"
 )
 
-func newSystemContext() *types.SystemContext {
-	ctx := &types.SystemContext{
-		ArchitectureChoice:      "amd64",
-		OSChoice:                "linux",
-		DockerRegistryUserAgent: "ecr-image-sync/v0.1.1",
-	}
-	return ctx
-}
-
 func (i *inputRepository) getTagsFromPublicRepo() (tags []string, err error) {
-	ctx := context.TODO()
-	systemContext := newSystemContext()
-	imageref, err := alltransports.ParseImageName("docker://" + i.source)
-
-	if err != nil {
-		return tags, err
+	params := crane.Options{
+		Platform: &v1.Platform{
+			Architecture: "amd64",
+			OS:           "linux",
+		},
 	}
-	tags, err = docker.GetRepositoryTags(ctx, systemContext, imageref)
 
+	opts := []crane.Option{crane.WithPlatform(params.Platform)}
+
+	tags, err = crane.ListTags(i.source, opts...)
 	if err != nil {
-		return tags, err
+		return tags, fmt.Errorf("reading tags for %s: %w", i.source, err)
 	}
 
 	return tags, err
