@@ -66,6 +66,21 @@ func Test_checkDigest(t *testing.T) {
 			wantErr:    false,
 		}, {
 			args: args{
+				imageName:            "quay.io/cilium/cilium", //v1 "quay.io/cilium/cilium:v1.4.2"
+				resultPublicRepoTags: []string{"v1.12.4"},
+				resultsFromEcr: map[string]ecrResults{
+					"quay.io/cilium/cilium:v1.12.4": {
+						name: "cilium/cilium",
+						tag:  "v1.12.4",
+						hash: "sha256:fce8a710870c6516e88be0c74c7e0c64cc26736ebba4412d1a0e9eb295b96c94",
+					},
+				},
+			},
+			name:       "checkHashQuay",
+			wantResult: nil,
+			wantErr:    false,
+		}, {
+			args: args{
 				imageName:            "quay.io/cilium/cilium",
 				resultPublicRepoTags: []string{"v1.4.2"},
 				resultsFromEcr: map[string]ecrResults{
@@ -76,8 +91,8 @@ func Test_checkDigest(t *testing.T) {
 					},
 				},
 			},
-			name:       "checkHashQuay",
-			wantResult: nil,
+			name:       "checkV1ImageContinueOnErrAndAddToResult",
+			wantResult: []string{"v1.4.2"},
 			wantErr:    false,
 		},
 	}

@@ -3,25 +3,7 @@ package lambda
 import (
 	"reflect"
 	"testing"
-
-	"github.com/containers/image/v5/types"
 )
-
-func Test_newSystemContext(t *testing.T) {
-	tests := []struct {
-		name string
-		want *types.SystemContext
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := newSystemContext(); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("newSystemContext() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func Test_inputRepository_getTagsFromPublicRepo(t *testing.T) {
 	tests := []struct {

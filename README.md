@@ -148,7 +148,6 @@ https://github.com/cweill/gotests
 
 
 ## references
-* https://github.com/containers/skopeo
 * https://docs.aws.amazon.com/lambda/latest/dg/golang-package.html
 * https://github.com/pgarbe/cdk-ecr-sync
 * https://garbe.io/blog/2020/04/22/cdk-ecr-sync/
@@ -156,7 +155,7 @@ https://github.com/cweill/gotests
 * https://github.com/docker-slim/docker-slim
 
 ### used modules
-* https://github.com/containers/image
+* https://github.com/google/go-containerregistry
 * https://github.com/nikoksr/notify
 * https://github.com/google/go-containerregistry/blob/main/cmd/crane/doc/crane.md
 

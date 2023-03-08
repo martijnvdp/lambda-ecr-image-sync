@@ -158,11 +158,13 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 			}
 			csvContent = append(csvContent, csvOutput...)
 		default:
-			err = svc.syncImages(i.source, tagsToSync, environmentVars)
-			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
-					"Error syncing repositories:")
-			}
+			// err = svc.syncImages(t, environmentVars)
+			// if err != nil {
+			// 	return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+			// 		"Error syncing repositories:")
+			// }
+			fmt.Println("start sync for")
+			fmt.Println(i.source)
 		}
 		total = total + len(tagsToSync.tags)
 	}
