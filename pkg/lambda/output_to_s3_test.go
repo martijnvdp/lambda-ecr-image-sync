@@ -41,9 +41,9 @@ func Test_buildCSVFile(t *testing.T) {
 		{
 			name: "TestbuildCSV",
 			args: args{
-				source: "gcr.io/datadoghq/agent",
 				options: syncOptions{
 					ecrImageName: "dev/datadoghq/agent",
+					source:       "gcr.io/datadoghq/agent",
 					tags:         []string{"v7.32.0", "v7.31.0", "v7.28.0"},
 				},
 				env: environmentVars{
@@ -57,7 +57,7 @@ func Test_buildCSVFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCsvContent, err := buildCSVFile(tt.args.source, tt.args.options, tt.args.env)
+			gotCsvContent, err := buildCSVFile(tt.args.options, tt.args.env)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("buildCSVFile() error = %v, wantErr %v", err, tt.wantErr)
 				return

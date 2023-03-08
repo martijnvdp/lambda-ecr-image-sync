@@ -83,10 +83,10 @@ func createZipFile(file string, target string) error {
 	return z.Close()
 }
 
-func buildCSVFile(source string, options syncOptions, env environmentVars) (csvContent []csvFormat, err error) {
+func buildCSVFile(options syncOptions, env environmentVars) (csvContent []csvFormat, err error) {
 	for _, tag := range options.tags {
 		csvContent = append(csvContent, csvFormat{
-			source:      source,
+			source:      options.source,
 			imageECRURL: env.awsAccount + `.dkr.ecr.` + env.awsRegion + `.amazonaws.com/` + options.ecrImageName,
 			imageTag:    tag,
 		})

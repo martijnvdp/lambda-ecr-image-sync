@@ -234,6 +234,7 @@ func (svc *ecrClient) getTagsToSync(i *inputRepository, ecrImageName string, max
 	return syncOptions{
 		tags:         tags,
 		ecrImageName: ecrImageName,
+		source:       i.source,
 	}, err
 }
 

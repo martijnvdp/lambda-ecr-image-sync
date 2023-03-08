@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // LambdaEvent lambda input event data, fields have to be exported
@@ -109,8 +110,13 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 		errSubject   = tryString(event.SlackMSGErrSubject, "The following error has occurred during the lambda ecr-image-sync:")
 		repositories []inputRepository
 		total        int
+		wg           sync.WaitGroup
 	)
 	environmentVars, err := getEnvironmentVars()
+	inputRepositories := make(chan inputRepository)
+	maxWorkers := 4
+	repoErrors := make(chan error)
+	tagsToSync := make(chan syncOptions)
 
 	zipFile := filepath.Join(tmpDir, imagesZipFile)
 	csvFile := filepath.Join(tmpDir, imagesCSVFile)
@@ -136,35 +142,67 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 	}
 	log.Printf("Starting lambda for %s repositories", strconv.Itoa(len(repositories)))
 
-	for _, i := range repositories {
-		log.Printf("Processing repository: %s", i.source)
-		tagsToSync, err := svc.getTagsToSync(&i, i.ecrImageName, event.MaxResults, event.CheckDigest, environmentVars)
+	// spawn workers
+	for i := 0; i < maxWorkers; i++ {
+		go func() {
+			for r := range inputRepositories {
+				log.Printf("Processing repository: %s", r.source)
+				result, err := svc.getTagsToSync(&r, r.ecrImageName, event.MaxResults, event.CheckDigest, environmentVars)
+				if err != nil {
+					repoErrors <- err
+				}
+				tagsToSync <- result
+			}
+		}()
+	}
 
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
-				"Error getting tags to sync:")
+	// add jobs to the queue
+	wg.Add(len(repositories))
+	go func() {
+		for _, r := range repositories {
+			inputRepositories <- r
 		}
+		close(inputRepositories)
+	}()
 
-		if len(tagsToSync.tags) <= 0 {
+	// collect results
+	go func() {
+		wg.Wait()
+		close(tagsToSync)
+		close(repoErrors)
+	}()
+
+	for e := range repoErrors {
+		if len(e.Error()) > 0 {
+			continue
+		}
+	}
+
+	for t := range tagsToSync {
+		if len(t.tags) <= 0 {
 			continue
 		}
 
 		switch {
 		case event.Action == "s3":
-			csvOutput, err := buildCSVFile(i.source, tagsToSync, environmentVars)
+			csvOutput, err := buildCSVFile(t, environmentVars)
 			if err != nil {
 				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 					"Error building csv output:")
 			}
 			csvContent = append(csvContent, csvOutput...)
 		default:
-			err = svc.syncImages(i.source, tagsToSync, environmentVars)
-			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
-					"Error syncing repositories:")
-			}
+			// err = svc.syncImages(t, environmentVars)
+			// if err != nil {
+			// 	return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+			// 		"Error syncing repositories:")
+			// }
+			fmt.Println("start sync for")
+			fmt.Println(t.source)
 		}
-		total = total + len(tagsToSync.tags)
+		total = total + len(t.tags)
+
+		wg.Done()
 	}
 	resultMessage := fmt.Sprintf("Successfully synced %s images to the ecr", strconv.Itoa(total))
 
