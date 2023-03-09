@@ -8,12 +8,11 @@ on:
 jobs:
   docker-slim-build-container:
     name: Build and push container image to ECR
-    runs-on: ubuntu-20.04 # to fix an issue with the GLIBC version beeing too high
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
     steps:
-      - run: sudo apt update && sudo apt install libdevmapper-dev && sudo apt install libbtrfs-dev && sudo apt install pkg-config
       - 
         name: Checkout
         uses: actions/checkout@v2
