@@ -91,8 +91,8 @@ func Test_checkDigest(t *testing.T) {
 					},
 				},
 			},
-			name:       "checkV1ImageContinueOnErrAndAddToResult",
-			wantResult: []string{"v1.4.2"},
+			name:       "checkV1ImageContinueOnErr",
+			wantResult: nil,
 			wantErr:    false,
 		},
 	}

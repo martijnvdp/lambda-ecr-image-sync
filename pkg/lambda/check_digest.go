@@ -54,7 +54,7 @@ func checkDigest(imageName string, resultPublicRepoTags *[]string, resultsFromEc
 			if err != nil {
 				return result, err
 			}
-			match := (*resultsFromEcr)[imageName+":"+tag].hash == digest
+			match := (*resultsFromEcr)[imageName+":"+tag].hash == digest || digest == ""
 
 			if !match {
 				result = append(result, tag)
