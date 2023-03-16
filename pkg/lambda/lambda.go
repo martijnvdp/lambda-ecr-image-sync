@@ -168,7 +168,9 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 					log.Fatal(err)
 				}
 				mu.Lock()
-				allTagsToSync = append(allTagsToSync, tagsToSync)
+				if len(tagsToSync.tags) > 0 {
+					allTagsToSync = append(allTagsToSync, tagsToSync)
+				}
 				mu.Unlock()
 			}(j)
 
