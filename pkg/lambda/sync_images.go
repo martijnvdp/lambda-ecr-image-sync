@@ -25,6 +25,7 @@ type loginOptions struct {
 
 type syncOptions struct {
 	tags         []string
+	source       string
 	ecrImageName string
 }
 
@@ -82,7 +83,7 @@ func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrImageName
 	return nil
 }
 
-func (svc *ecrClient) syncImages(imageName string, options syncOptions, env environmentVars) error {
+func (svc *ecrClient) syncImages(options syncOptions, env environmentVars) error {
 	awsPrefix := env.awsAccount + ".dkr.ecr." + env.awsRegion + ".amazonaws.com"
 	log.Printf("add login for %v", awsPrefix)
 	awsAuthData, err := svc.getECRAuthData()
@@ -104,8 +105,8 @@ func (svc *ecrClient) syncImages(imageName string, options syncOptions, env envi
 	}
 
 	for _, tag := range options.tags {
-		log.Printf("copying %s:%s to %s/%s:%s", imageName, tag, awsPrefix, options.ecrImageName, tag)
-		err := svc.copyImageWithCrane(imageName, tag, awsPrefix, options.ecrImageName)
+		log.Printf("copying %s:%s to %s/%s:%s", options.source, tag, awsPrefix, options.ecrImageName, tag)
+		err := svc.copyImageWithCrane(options.source, tag, awsPrefix, options.ecrImageName)
 
 		if err != nil {
 			log.Println("error copying image: ", err)

@@ -1,6 +1,7 @@
 package lambda
 
 import (
+	"log"
 	"strings"
 
 	"github.com/google/go-containerregistry/pkg/authn"
@@ -18,12 +19,21 @@ func getDigest(source string) (string, error) {
 	if err != nil && strings.Contains(err.Error(), "unsupported MediaType: \"application/vnd.docker.distribution.manifest.v1") {
 		return "", nil
 	}
+	if err != nil && strings.Contains(err.Error(), "You have reached your pull rate limit.") {
+		log.Printf("Pull rate limit exceeded for %s", source)
+		return "", nil
+	}
+
 	if err != nil {
 		panic(err)
 	}
 
 	digest, err := img.Digest()
 	if err != nil && strings.Contains(err.Error(), "unsupported MediaType: \"application/vnd.docker.distribution.manifest.v1") {
+		return "", nil
+	}
+	if err != nil && strings.Contains(err.Error(), "You have reached your pull rate limit.") {
+		log.Printf("Pull rate limit exceeded for %s", source)
 		return "", nil
 	}
 	if err != nil {
