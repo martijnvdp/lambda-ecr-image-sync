@@ -43,6 +43,7 @@ Lambda event data:
 "repositories": [ // optional if not specified it wil syn call repos that are configured with tags
   "arn:aws:ecr:us-east-1:123456789012:repository/dev/datadog/datadog-operator","arn:aws:ecr:us-east-1:123456789012:repository/dev/datadog/datadog"]
 "check_digest": true // check digest of existing tags on ecr and only add tags if the digest is not the same
+"concurrent": 2 // max number of concurrent jobs
 "max_results": 5
 "slack_channel_id":"CDDF324"
 "slack_errors_only": true // only return errors to slack

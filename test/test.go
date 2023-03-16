@@ -12,6 +12,7 @@ func main() {
 	os.Setenv("AWS_ACCOUNT_ID", "1234")
 
 	lambdaEvent := ecrImageSync.LambdaEvent{
+		Concurrent:  2,
 		CheckDigest: true,
 		MaxResults:  5,
 	}

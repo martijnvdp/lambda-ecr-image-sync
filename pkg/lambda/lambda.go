@@ -8,12 +8,14 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 )
 
 // LambdaEvent lambda input event data, fields have to be exported
 type LambdaEvent struct {
 	Action             string   `json:"action"` // s3 or sync
 	CheckDigest        bool     `json:"check_digest"`
+	Concurrent         int      `json:"concurrent"` // number of concurrent syncs
 	Repositories       []string `json:"repositories"`
 	MaxResults         int      `json:"max_results"`
 	SlackChannelID     string   `json:"slack_channel_id"`
@@ -145,29 +147,46 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 	}
 	log.Printf("Starting lambda for %s repositories", strconv.Itoa(len(repositories)))
 
-	for _, i := range repositories {
-		log.Printf("Processing repository: %s", i.source)
-		tagsToSync, err := svc.getTagsToSync(&i, i.ecrImageName, event.MaxResults, event.CheckDigest, environmentVars)
-
-		if err != nil {
-			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
-				"Error getting tags to sync:")
+	totalItems, max := len(repositories), maxInt(event.Concurrent, 1)
+	var allTagsToSync []syncOptions
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	for i := 0; i < totalItems; i += max {
+		limit := max
+		if i+max > totalItems {
+			limit = totalItems - i
 		}
 
-		if len(tagsToSync.tags) <= 0 {
-			continue
-		}
+		wg.Add(limit)
+		for j := 0; j < limit; j++ {
+			repo := repositories[i+j]
+			log.Printf("Processing repository: %s", repo.source)
+			go func(j int) {
+				defer wg.Done()
+				tagsToSync, err := svc.getTagsToSync(&repo, repo.ecrImageName, event.MaxResults, event.CheckDigest, environmentVars)
+				if err != nil {
+					log.Fatal(err)
+				}
+				mu.Lock()
+				allTagsToSync = append(allTagsToSync, tagsToSync)
+				mu.Unlock()
+			}(j)
 
+		}
+		wg.Wait()
+	}
+
+	for _, tagsToSync := range allTagsToSync {
 		switch {
 		case event.Action == "s3":
-			csvOutput, err := buildCSVFile(i.source, tagsToSync, environmentVars)
+			csvOutput, err := buildCSVFile(tagsToSync, environmentVars)
 			if err != nil {
 				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 					"Error building csv output:")
 			}
 			csvContent = append(csvContent, csvOutput...)
 		default:
-			err = svc.syncImages(i.source, tagsToSync, environmentVars)
+			err = svc.syncImages(tagsToSync, environmentVars)
 			if err != nil {
 				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 					"Error syncing repositories:")
