@@ -28,7 +28,7 @@ func Test_createZipFile(t *testing.T) {
 
 func Test_buildCSVFile(t *testing.T) {
 	type args struct {
-		options syncOptions
+		options []syncOptions
 		env     environmentVars
 	}
 	tests := []struct {
@@ -40,10 +40,12 @@ func Test_buildCSVFile(t *testing.T) {
 		{
 			name: "TestbuildCSV",
 			args: args{
-				options: syncOptions{
-					source:       "gcr.io/datadoghq/agent",
-					ecrImageName: "dev/datadoghq/agent",
-					tags:         []string{"v7.32.0", "v7.31.0", "v7.28.0"},
+				options: []syncOptions{
+					{
+						source:       "gcr.io/datadoghq/agent",
+						ecrImageName: "dev/datadoghq/agent",
+						tags:         []string{"v7.32.0", "v7.31.0", "v7.28.0"},
+					},
 				},
 				env: environmentVars{
 					awsAccount: "123321",
@@ -56,7 +58,7 @@ func Test_buildCSVFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotCsvContent, err := buildCSVFile(tt.args.options, tt.args.env)
+			gotCsvContent, _, err := buildCSVFile(tt.args.options, tt.args.env)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("buildCSVFile() error = %v, wantErr %v", err, tt.wantErr)
 				return

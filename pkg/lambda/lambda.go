@@ -37,6 +37,12 @@ type inputRepository struct {
 	releaseOnly  bool
 }
 
+type process struct {
+	wg  *sync.WaitGroup
+	mu  *sync.Mutex
+	svc *ecrClient
+}
+
 type response struct {
 	Message string `json:"message"`
 	Ok      bool   `json:"ok"`
@@ -97,6 +103,69 @@ func ecrRepoNamesFromAWSARNs(arns []string, region, account string) []string {
 	return names
 }
 
+func (proc *process) processRepositories(repositories []inputRepository, max, maxResults int, checkDigest bool, environmentVars environmentVars) (allTagsToSync []syncOptions) {
+	totalItems := len(repositories)
+
+	for i := 0; i < totalItems; i += max {
+		limit := max
+		if i+max > totalItems {
+			limit = totalItems - i
+		}
+
+		proc.wg.Add(limit)
+		for j := 0; j < limit; j++ {
+			repo := repositories[i+j]
+			log.Printf("Processing repository: %s", repo.source)
+			go func(j int) {
+				defer proc.wg.Done()
+				tagsToSync, err := proc.svc.getTagsToSync(&repo, repo.ecrImageName, maxResults, checkDigest, environmentVars)
+				if err != nil {
+					log.Fatal(err)
+				}
+				proc.mu.Lock()
+				if len(tagsToSync.tags) > 0 {
+					allTagsToSync = append(allTagsToSync, tagsToSync)
+				}
+				proc.mu.Unlock()
+			}(j)
+		}
+		proc.wg.Wait()
+	}
+	return allTagsToSync
+}
+
+func (proc *process) processTags(allTagsToSync []syncOptions, max int, environmentVars environmentVars) (total int, syncErrors []error) {
+	totalItems := len(allTagsToSync)
+
+	for i := 0; i < totalItems; i += max {
+		limit := max
+		if i+max > totalItems {
+			limit = totalItems - i
+		}
+
+		proc.wg.Add(limit)
+		for j := 0; j < limit; j++ {
+			tags := allTagsToSync[i+j]
+			log.Printf("Syncing image: %s", tags.source)
+			go func(j int) {
+				defer proc.wg.Done()
+				err := proc.svc.syncImages(tags, environmentVars)
+				if err != nil {
+					proc.mu.Lock()
+					syncErrors = append(syncErrors, err)
+					proc.mu.Unlock()
+					log.Fatal(err)
+				}
+			}(j)
+			proc.mu.Lock()
+			total = total + len(tags.tags)
+			proc.mu.Unlock()
+		}
+		proc.wg.Wait()
+	}
+	return total, syncErrors
+}
+
 // Start Lambda Function for syncing ecr images with public repositories, outputs csv with needed images to S3 bucket.
 func Start(ctx context.Context, event LambdaEvent) (response, error) {
 	const (
@@ -106,6 +175,7 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 
 	var (
 		csvContent   []csvFormat
+		syncErrors   []error
 		dockerConfig = filepath.Dir(tmpDir)
 		errSubject   = tryString(event.SlackMSGErrSubject, "The following error has occurred during the lambda ecr-image-sync:")
 		repositories []inputRepository
@@ -145,57 +215,38 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 			"Error getting input images from tags")
 	}
+
 	log.Printf("Starting lambda for %s repositories", strconv.Itoa(len(repositories)))
+	maxConcurrent := maxInt(event.Concurrent, 1)
 
-	totalItems, max := len(repositories), maxInt(event.Concurrent, 1)
-	var allTagsToSync []syncOptions
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	for i := 0; i < totalItems; i += max {
-		limit := max
-		if i+max > totalItems {
-			limit = totalItems - i
+	proc := process{
+		wg:  &sync.WaitGroup{},
+		mu:  &sync.Mutex{},
+		svc: svc,
+	}
+	allTagsToSync := proc.processRepositories(repositories, maxConcurrent, event.MaxResults, event.CheckDigest, environmentVars)
+
+	switch {
+	case event.Action == "s3":
+		csvContent, total, err = buildCSVFile(allTagsToSync, environmentVars)
+		if err != nil {
+			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+				"Error building csv output:")
+		}
+	default:
+		err = proc.svc.authToECR(environmentVars)
+		if err != nil {
+			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+				"Error authenticating to ECR:")
+		}
+		total, syncErrors = proc.processTags(allTagsToSync, maxConcurrent, environmentVars)
+		for _, err := range syncErrors {
+			return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
+				"Error syncing repositories:")
 		}
 
-		wg.Add(limit)
-		for j := 0; j < limit; j++ {
-			repo := repositories[i+j]
-			log.Printf("Processing repository: %s", repo.source)
-			go func(j int) {
-				defer wg.Done()
-				tagsToSync, err := svc.getTagsToSync(&repo, repo.ecrImageName, event.MaxResults, event.CheckDigest, environmentVars)
-				if err != nil {
-					log.Fatal(err)
-				}
-				mu.Lock()
-				if len(tagsToSync.tags) > 0 {
-					allTagsToSync = append(allTagsToSync, tagsToSync)
-				}
-				mu.Unlock()
-			}(j)
-
-		}
-		wg.Wait()
 	}
 
-	for _, tagsToSync := range allTagsToSync {
-		switch {
-		case event.Action == "s3":
-			csvOutput, err := buildCSVFile(tagsToSync, environmentVars)
-			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
-					"Error building csv output:")
-			}
-			csvContent = append(csvContent, csvOutput...)
-		default:
-			err = svc.syncImages(tagsToSync, environmentVars)
-			if err != nil {
-				return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
-					"Error syncing repositories:")
-			}
-		}
-		total = total + len(tagsToSync.tags)
-	}
 	resultMessage := fmt.Sprintf("Successfully synced %s images to the ecr", strconv.Itoa(total))
 
 	if csvContent != nil && event.Action == "s3" && environmentVars.awsBucket != "" {
