@@ -41,7 +41,7 @@ jobs:
       -
         name: Go Cyclo test
         run: |
-          gocyclo -over 25 -ignore 'external' .
+          gocyclo -over 19 -ignore 'external' .
       -
         name: ineffassign test
         run: |

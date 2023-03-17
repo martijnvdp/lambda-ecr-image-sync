@@ -83,7 +83,7 @@ func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrImageName
 	return nil
 }
 
-func (svc *ecrClient) syncImages(options syncOptions, env environmentVars) error {
+func (svc *ecrClient) authToECR(env environmentVars) error {
 	awsPrefix := env.awsAccount + ".dkr.ecr." + env.awsRegion + ".amazonaws.com"
 	log.Printf("add login for %v", awsPrefix)
 	awsAuthData, err := svc.getECRAuthData()
@@ -103,6 +103,11 @@ func (svc *ecrClient) syncImages(options syncOptions, env environmentVars) error
 		log.Println("error authentication to ecr: ", err)
 		return err
 	}
+	return err
+}
+
+func (svc *ecrClient) syncImages(options syncOptions, env environmentVars) (err error) {
+	awsPrefix := env.awsAccount + ".dkr.ecr." + env.awsRegion + ".amazonaws.com"
 
 	for _, tag := range options.tags {
 		log.Printf("copying %s:%s to %s/%s:%s", options.source, tag, awsPrefix, options.ecrImageName, tag)
