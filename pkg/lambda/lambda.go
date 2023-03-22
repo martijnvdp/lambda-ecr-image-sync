@@ -103,6 +103,7 @@ func ecrRepoNamesFromAWSARNs(arns []string, region, account string) []string {
 	return names
 }
 
+// processRepositories processes repositories in batches
 func (proc *process) processRepositories(repositories []inputRepository, max, maxResults int, checkDigest bool, environmentVars environmentVars) (allTagsToSync []syncOptions) {
 	totalItems := len(repositories)
 
@@ -134,6 +135,7 @@ func (proc *process) processRepositories(repositories []inputRepository, max, ma
 	return allTagsToSync
 }
 
+// processTags processes tags in batches
 func (proc *process) processTags(allTagsToSync []syncOptions, max int, environmentVars environmentVars) (total int, syncErrors []error) {
 	totalItems := len(allTagsToSync)
 
