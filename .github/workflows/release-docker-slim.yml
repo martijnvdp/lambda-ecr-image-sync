@@ -7,11 +7,12 @@ on:
 
 jobs:
   docker-slim-build-container:
-    name: Build and push container image to ECR
+    name: Build and push container image
     runs-on: ubuntu-latest
     permissions:
       contents: read
       id-token: write
+      packages: write
     steps:
       - 
         name: Checkout
@@ -28,26 +29,19 @@ jobs:
         run: |
           go mod tidy
           go test -v ./pkg/lambda
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-region: ${{ secrets.AWS_REGION }}
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/github
       -
         name: Get Tag Name
         id: tag_name
         run: |
           echo ::set-output name=SOURCE_TAG::${GITHUB_REF#refs/tags/}
-      - 
-        name: Login to GitHub Container registry
-        uses: docker/login-action@v1
-        env:
-          GITHUB_USER: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to ghcr.io
+        uses: docker/login-action@v2.2.0
         with:
           registry: ghcr.io
-          username: $GITHUB_USER
-          password: ${{ secrets.GH_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push the Docker image
         run: |
           sudo curl https://downloads.dockerslim.com/releases/1.40.0/dist_linux.tar.gz -o ./dist_linux.tar.gz && sudo tar xf ./dist_linux.tar.gz -C . && sudo mv dist_linux/* /usr/bin && sudo chmod +x /usr/bin/docker-slim
