@@ -214,6 +214,12 @@ func Start(ctx context.Context, event LambdaEvent) (response, error) {
 	repositories, err = svc.getinputRepositorysFromTags(names)
 
 	if err != nil {
+		if strings.Contains(err.Error(), "RepositoryNotFoundException") {
+			return response{
+				Message: "Repository not found",
+				Ok:      true,
+			}, nil
+		}
 		return returnErr(err, environmentVars.slackOAuthToken, event.SlackChannelID, errSubject,
 			"Error getting input images from tags")
 	}
