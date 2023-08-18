@@ -77,6 +77,9 @@ func (svc *ecrClient) copyImageWithCrane(imageName, tag, awsPrefix, ecrImageName
 
 	if err := crane.Copy((imageName + ":" + tag), (awsPrefix + "/" + ecrImageName + ":" + tag), opts...); err != nil {
 		log.Printf("error copying image: %v", err)
+		if strings.Contains(err.Error(), "no child with platform linux/amd64") {
+			return nil
+		}
 		return err
 	}
 
