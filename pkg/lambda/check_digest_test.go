@@ -57,7 +57,7 @@ func Test_checkDigest(t *testing.T) {
 					"docker.io/nginx:1.23.3": {
 						name: "nginx",
 						tag:  "1.23.3",
-						hash: "sha256:942ae2dfd73088b54d7151a3c3fd5af038a51c50029bfcfd21f1e650d9579967",
+						hash: "sha256:557c9ede65655e5a70e4a32f1651638ea3bfb0802edd982810884602f700ba25",
 					},
 				},
 			},

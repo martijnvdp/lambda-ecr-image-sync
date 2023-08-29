@@ -105,6 +105,7 @@ func (svc *ecrClient) getECRRepositories(inputRepositories []string) (repositori
 
 	if err != nil {
 		log.Printf("Error: %s", err)
+		return nil, err
 	}
 
 	return repositories, err
